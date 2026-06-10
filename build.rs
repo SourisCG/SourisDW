@@ -41,10 +41,10 @@ fn download_ffmpeg(os: &str, arch: &str, dest: &PathBuf) -> Result<(), Box<dyn s
             "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-linux-arm64.gz"
         }
         ("macos", "x86_64") => {
-            "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-macos-x64.gz"
+            "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-x64.gz"
         }
         ("macos", "aarch64") => {
-            "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-macos-arm64.gz"
+            "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-arm64.gz"
         }
         ("windows", _) => {
             "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-win32-x64.gz"
@@ -60,9 +60,9 @@ fn download_ffmpeg(os: &str, arch: &str, dest: &PathBuf) -> Result<(), Box<dyn s
 fn download_and_decompress(
     url: &str,
     dest: &PathBuf,
-    is_gz: bool,
+    skip_decompress: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let temp_file = if is_gz {
+    let temp_file = if skip_decompress {
         dest.with_extension("exe")
     } else {
         dest.with_extension("tmp")
@@ -76,7 +76,7 @@ fn download_and_decompress(
         return Err("Failed to download ffmpeg".into());
     }
 
-    if is_gz {
+    if skip_decompress {
         fs::rename(&temp_file, dest)?;
     } else {
         let status = Command::new("gunzip")

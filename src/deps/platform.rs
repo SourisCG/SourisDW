@@ -116,7 +116,7 @@ pub fn yt_dlp_release_filename() -> &'static str {
 pub fn yt_dlp_download_url(version: &str) -> String {
     format!(
         "https://github.com/yt-dlp/yt-dlp/releases/{}/download/{}",
-        if version == "latest" {
+        if version == "latest" || version == "stable" {
             "latest".to_string()
         } else {
             format!("tag/{}", version)
