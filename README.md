@@ -20,6 +20,14 @@
   <img src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey?style=flat-square" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64"><img src="https://img.shields.io/badge/Linux_x86__64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-aarch64"><img src="https://img.shields.io/badge/Linux_ARM64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-x86_64"><img src="https://img.shields.io/badge/macOS_Intel-download-blue?style=for-the-badge&logo=apple&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-aarch64"><img src="https://img.shields.io/badge/macOS_Apple__Silicon-download-blue?style=for-the-badge&logo=apple&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-windows-x86_64.exe"><img src="https://img.shields.io/badge/Windows_x64-download-blue?style=for-the-badge&logo=windows&logoColor=white" /></a>
+</p>
+
 ---
 
 ## Features
