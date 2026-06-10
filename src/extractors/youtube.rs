@@ -16,7 +16,13 @@ impl YouTubeExtractor {
 
     pub async fn extract_info(&self, url: &str) -> Result<MediaInfo> {
         let output = tokio::process::Command::new(self.yt_dlp.binary_path())
-            .args(["--dump-json", "--no-download", url])
+            .args([
+                "--dump-json",
+                "--no-download",
+                "--extractor-args",
+                "youtube:player_js_version=actual",
+                url,
+            ])
             .output()
             .await
             .map_err(|e| SourisError::DownloadFailed {
@@ -36,7 +42,14 @@ impl YouTubeExtractor {
 
     pub async fn extract_playlist_info(&self, url: &str) -> Result<Vec<MediaInfo>> {
         let output = tokio::process::Command::new(self.yt_dlp.binary_path())
-            .args(["--dump-json", "--flat-playlist", "--no-download", url])
+            .args([
+                "--dump-json",
+                "--flat-playlist",
+                "--no-download",
+                "--extractor-args",
+                "youtube:player_js_version=actual",
+                url,
+            ])
             .output()
             .await
             .map_err(|e| SourisError::DownloadFailed {
@@ -69,6 +82,8 @@ impl YouTubeExtractor {
                 "--dump-json",
                 "--flat-playlist",
                 "--no-download",
+                "--extractor-args",
+                "youtube:player_js_version=actual",
                 &search_query,
             ])
             .output()
@@ -133,6 +148,7 @@ impl YouTubeExtractor {
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
+        cmd.args(["--extractor-args", "youtube:player_js_version=actual"]);
 
         if let Some(ffmpeg) = ffmpeg_path {
             cmd.arg("--ffmpeg-location");
@@ -327,6 +343,7 @@ impl YouTubeExtractor {
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
+        cmd.args(["--extractor-args", "youtube:player_js_version=actual"]);
 
         if let Some(ffmpeg) = ffmpeg_path {
             cmd.arg("--ffmpeg-location");
