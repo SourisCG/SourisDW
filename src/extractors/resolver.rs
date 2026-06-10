@@ -1,3 +1,4 @@
+use crate::core::request::MediaTypeHint;
 use crate::core::types::*;
 use crate::error::{Result, SourisError};
 use crate::extractors::spotify::SpotifyExtractor;
@@ -158,6 +159,7 @@ impl Resolver {
         embed_metadata: bool,
         embed_thumbnail: bool,
         embed_subtitles: bool,
+        media_type: Option<&MediaTypeHint>,
     ) -> Result<DownloadResult> {
         let platform = self.detect_platform(url);
         let resource_type = self.detect_resource_type(url);
@@ -202,6 +204,7 @@ impl Resolver {
                             embed_metadata,
                             embed_thumbnail,
                             embed_subtitles,
+                            media_type,
                         )
                         .await
                 }
@@ -228,6 +231,7 @@ impl Resolver {
                                     embed_metadata,
                                     embed_thumbnail,
                                     embed_subtitles,
+                                    media_type,
                                 )
                                 .await?;
 
@@ -261,6 +265,7 @@ impl Resolver {
                                         embed_metadata,
                                         embed_thumbnail,
                                         embed_subtitles,
+                                        media_type,
                                     )
                                     .await;
 
@@ -305,6 +310,7 @@ impl Resolver {
                         embed_metadata,
                         embed_thumbnail,
                         embed_subtitles,
+                        media_type,
                     )
                     .await
             }

@@ -63,6 +63,7 @@ pub struct AppConfigState {
     pub embed_metadata: bool,
     pub embed_thumbnail: bool,
     pub auto_update: bool,
+    pub audio_only: bool,
 }
 
 pub const SETTINGS_OPTIONS: &[&str] = &[
@@ -72,6 +73,7 @@ pub const SETTINGS_OPTIONS: &[&str] = &[
     "Parallel Downloads",
     "Embed Metadata",
     "Embed Thumbnail",
+    "Audio Only",
     "Auto Update",
 ];
 
@@ -102,18 +104,30 @@ impl AppState {
 
     pub fn add_download(&mut self, url: String, title: String, platform: String) -> usize {
         let id = self.downloads.len();
+        let audio_only = self.config.audio_only;
+        let media_type = if audio_only {
+            "audio".to_string()
+        } else {
+            "video".to_string()
+        };
+        let format = if audio_only {
+            "mp3".to_string()
+        } else {
+            self.config.default_format.clone()
+        };
+        let quality = self.config.default_quality.clone();
         self.downloads.push(DownloadState {
             id,
             url,
             title,
             platform,
-            media_type: "video".to_string(),
+            media_type,
             status: DownloadStatus::Queued,
             progress: 0.0,
             speed: String::new(),
             eta: String::new(),
-            format: self.config.default_format.clone(),
-            quality: self.config.default_quality.clone(),
+            format,
+            quality,
             size: None,
             path: None,
         });
@@ -307,7 +321,8 @@ impl AppState {
             3 => self.config.parallel.to_string(),
             4 => self.config.embed_metadata.to_string(),
             5 => self.config.embed_thumbnail.to_string(),
-            6 => self.config.auto_update.to_string(),
+            6 => self.config.audio_only.to_string(),
+            7 => self.config.auto_update.to_string(),
             _ => String::new(),
         }
     }
@@ -340,7 +355,8 @@ impl AppState {
             }
             4 => self.config.embed_metadata = !self.config.embed_metadata,
             5 => self.config.embed_thumbnail = !self.config.embed_thumbnail,
-            6 => self.config.auto_update = !self.config.auto_update,
+            6 => self.config.audio_only = !self.config.audio_only,
+            7 => self.config.auto_update = !self.config.auto_update,
             _ => {}
         }
     }
@@ -356,6 +372,7 @@ impl Default for AppConfigState {
             embed_metadata: true,
             embed_thumbnail: true,
             auto_update: true,
+            audio_only: false,
         }
     }
 }

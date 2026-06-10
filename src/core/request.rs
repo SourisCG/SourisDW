@@ -116,12 +116,65 @@ impl DownloadRequestBuilder {
     }
 
     pub async fn run(self) -> crate::error::Result<crate::core::types::DownloadResult> {
-        let downloader = crate::core::downloader::SourisDW::builder()
-            .auto_update(self.auto_update.unwrap_or(true))
-            .build()
-            .await?;
+        let auto_update = self.auto_update.unwrap_or(true);
+        let format = self.format;
+        let quality = self.quality;
+        let output = self.output;
+        let parallel = self.parallel;
+        let embed_metadata = self.embed_metadata;
+        let embed_thumbnail = self.embed_thumbnail;
+        let embed_subtitles = self.embed_subtitles;
+        let on_progress = self.on_progress;
+        let url = self.url;
+        let media_type = self.media_type;
 
-        downloader.execute_request(self).await
+        let mut builder = crate::core::downloader::SourisDW::builder().auto_update(auto_update);
+
+        if let Some(ref f) = format {
+            builder = builder.format(f.clone());
+        }
+        if let Some(ref q) = quality {
+            builder = builder.quality(q.clone());
+        }
+        if let Some(ref o) = output {
+            builder = builder.output(o.clone());
+        }
+        if let Some(p) = parallel {
+            builder = builder.parallel(p);
+        }
+        if let Some(m) = embed_metadata {
+            builder = builder.embed_metadata(m);
+        }
+        if let Some(t) = embed_thumbnail {
+            builder = builder.embed_thumbnail(t);
+        }
+        if let Some(s) = embed_subtitles {
+            builder = builder.embed_subtitles(s);
+        }
+        if let Some(sender) = on_progress {
+            builder = builder.on_progress(sender);
+        }
+
+        let downloader = builder.build().await?;
+
+        let req = downloader
+            .execute_request(crate::core::request::DownloadRequestBuilder {
+                url,
+                media_type,
+                format,
+                quality,
+                output,
+                parallel,
+                embed_metadata,
+                embed_thumbnail,
+                embed_subtitles,
+                on_progress: None,
+                timeout: None,
+                max_retries: None,
+                auto_update: None,
+            })
+            .await?;
+        Ok(req)
     }
 }
 

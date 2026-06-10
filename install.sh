@@ -47,7 +47,7 @@ get_download_url() {
     fi
 
     case "${os}-${arch}" in
-        linux-x86_64)   echo "${base_url}/${BINARY}-linux-x86_64" ;;
+        linux-x86_64)   echo "${base_url}/${BINARY}-linux-x86_64-musl" ;;
         linux-aarch64)  echo "${base_url}/${BINARY}-linux-aarch64" ;;
         macos-x86_64)   echo "${base_url}/${BINARY}-macos-x86_64" ;;
         macos-aarch64)  echo "${base_url}/${BINARY}-macos-aarch64" ;;

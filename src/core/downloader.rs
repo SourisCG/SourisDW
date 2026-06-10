@@ -243,6 +243,7 @@ impl SourisDW {
                 req.embed_metadata.unwrap_or(self.embed_metadata),
                 req.embed_thumbnail.unwrap_or(self.embed_thumbnail),
                 req.embed_subtitles.unwrap_or(self.embed_subtitles),
+                req.media_type.as_ref(),
             )
             .await
     }

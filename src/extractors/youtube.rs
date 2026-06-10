@@ -1,3 +1,4 @@
+use crate::core::request::MediaTypeHint;
 use crate::core::types::*;
 use crate::deps::yt_dlp::YtDlp;
 use crate::error::{Result, SourisError};
@@ -125,13 +126,34 @@ impl YouTubeExtractor {
         embed_metadata: bool,
         embed_thumbnail: bool,
         embed_subtitles: bool,
+        media_type: Option<&MediaTypeHint>,
     ) -> Result<DownloadResult> {
         let mut cmd = tokio::process::Command::new(self.yt_dlp.binary_path());
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
 
-        if let Some(f) = format {
+        let is_audio = matches!(media_type, Some(MediaTypeHint::Audio));
+
+        if is_audio {
+            let abr = quality.and_then(|q| match q {
+                Quality::Audio(a) => match a {
+                    AudioQuality::Kbps128 => Some("128"),
+                    AudioQuality::Kbps192 => Some("192"),
+                    AudioQuality::Kbps256 => Some("256"),
+                    AudioQuality::Kbps320 => Some("320"),
+                    AudioQuality::Lossless => Some("0"),
+                },
+                _ => None,
+            });
+            let format_str = if let Some(abr) = abr {
+                format!("-f ba[abr<={}]/ba", abr)
+            } else {
+                "-f ba".to_string()
+            };
+            cmd.args(["-f", &format_str]);
+            cmd.args(["-x", "--audio-format", "mp3"]);
+        } else if let Some(f) = format {
             let format_str = match f {
                 Format::Audio(_) => {
                     let abr = quality.and_then(|q| match q {

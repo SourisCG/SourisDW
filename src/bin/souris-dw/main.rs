@@ -560,7 +560,9 @@ async fn handle_tui() -> Result<()> {
                         }
                         events::Action::MoveDown => {
                             if app.show_settings {
-                                if app.settings_index < souris_dw::tui::app::SETTINGS_OPTIONS.len() - 1 {
+                                if app.settings_index
+                                    < souris_dw::tui::app::SETTINGS_OPTIONS.len() - 1
+                                {
                                     app.settings_index += 1;
                                 }
                             } else if app.show_search {
@@ -603,9 +605,57 @@ async fn handle_tui() -> Result<()> {
                                 app.input_buffer.clear();
                             } else if !app.input_buffer.is_empty() {
                                 let url = app.input_buffer.clone();
-                                app.add_download(url.clone(), url.clone(), "Unknown".to_string());
+                                let audio_only = app.config.audio_only;
+                                let format = app.config.default_format.clone();
+                                let quality = app.config.default_quality.clone();
+                                let output = app.config.output_dir.display().to_string();
+                                let embed_metadata = app.config.embed_metadata;
+                                let embed_thumbnail = app.config.embed_thumbnail;
+
+                                app.add_download(url.clone(), url.clone(), "Unknown".into());
                                 app.cancel_input();
-                                app.status_message = Some("Download queued".into());
+                                app.status_message = Some("Starting download...".into());
+
+                                tokio::spawn(async move {
+                                    let result = async {
+                                        let mut builder = souris_dw::SourisDW::builder()
+                                            .auto_update(true)
+                                            .output(&output)
+                                            .embed_metadata(embed_metadata)
+                                            .embed_thumbnail(embed_thumbnail);
+
+                                        if audio_only {
+                                            builder = builder.format_str("mp3")?;
+                                        } else {
+                                            builder = builder.format_str(&format)?;
+                                        }
+
+                                        let builder = builder.quality_str(&quality)?;
+                                        let dw = builder.build().await?;
+
+                                        let req = if audio_only {
+                                            dw.download_audio(&url)
+                                        } else {
+                                            dw.download(&url)
+                                        };
+
+                                        req.run().await
+                                    }
+                                    .await;
+
+                                    match result {
+                                        Ok(r) => {
+                                            if r.success {
+                                                tracing::info!("Download complete: {:?}", r.path);
+                                            } else {
+                                                tracing::error!("Download failed: {:?}", r.error);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Download error: {}", e);
+                                        }
+                                    }
+                                });
                             }
                         }
                         events::Action::Delete => {
