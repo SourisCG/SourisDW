@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use crate::core::types::{Format, Quality};
 use crate::core::progress::ProgressSender;
+use crate::core::types::{Format, Quality};
+use std::path::PathBuf;
 
 pub struct DownloadRequestBuilder {
     pub url: String,

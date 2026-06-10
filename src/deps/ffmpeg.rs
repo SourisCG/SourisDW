@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
-use crate::error::{Result, SourisError};
 use crate::deps::platform;
+use crate::error::{Result, SourisError};
 use crate::utils::fs;
+use std::path::{Path, PathBuf};
 
 pub struct FFmpeg {
     binary_path: PathBuf,
@@ -29,7 +29,10 @@ impl FFmpeg {
 
         if binary_path.exists() {
             let version = Self::get_version(&binary_path).await.ok();
-            return Ok(Self { binary_path, version });
+            return Ok(Self {
+                binary_path,
+                version,
+            });
         }
 
         if let Some(system_ffmpeg) = fs::which("ffmpeg") {

@@ -1,5 +1,5 @@
-use crate::error::Result;
 use crate::deps::yt_dlp::YtDlp;
+use crate::error::Result;
 
 pub async fn download_subtitles(url: &str, output_dir: &str) -> Result<()> {
     let yt_dlp = YtDlp::ensure_installed().await?;

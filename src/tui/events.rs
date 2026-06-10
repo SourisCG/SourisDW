@@ -1,6 +1,6 @@
+use crate::error::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::time::Duration;
-use crate::error::Result;
 
 #[derive(Debug, Clone)]
 pub enum AppEvent {
@@ -11,7 +11,9 @@ pub enum AppEvent {
 
 pub fn poll_event(timeout: Duration) -> Result<Option<AppEvent>> {
     if event::poll(timeout).map_err(|e| crate::error::SourisError::Other(e.into()))? {
-        if let Event::Key(key) = event::read().map_err(|e| crate::error::SourisError::Other(e.into()))? {
+        if let Event::Key(key) =
+            event::read().map_err(|e| crate::error::SourisError::Other(e.into()))?
+        {
             if key.kind == KeyEventKind::Press {
                 return Ok(Some(AppEvent::Key(key)));
             }

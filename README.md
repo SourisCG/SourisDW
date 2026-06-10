@@ -12,9 +12,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/SourisCG/SourisDW/actions/workflows/ci.yml"><img src="https://github.com/SourisCG/SourisDW/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/actions/workflows/release.yml"><img src="https://github.com/SourisCG/SourisDW/actions/workflows/release.yml/badge.svg" /></a>
   <img src="https://img.shields.io/badge/version-0.1.0-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/rust-1.70%2B-orange?style=flat-square&logo=rust" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
+  <a href="https://github.com/SourisCG/SourisDW/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" /></a>
   <img src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey?style=flat-square" />
 </p>
 
@@ -41,22 +43,48 @@
 
 ## Quick Start
 
-### Installation
+### One-Line Install
 
+**Linux & macOS:**
 ```bash
-# Linux
-curl -sL https://github.com/souris/souris-dw/releases/latest/download/souris-dw-linux-x86_64 -o souris-dw
-chmod +x souris-dw
-
-# macOS
-curl -sL https://github.com/souris/souris-dw/releases/latest/download/souris-dw-macos-universal -o souris-dw
-chmod +x souris-dw
-
-# Windows
-# Download souris-dw-windows-x86_64.exe from releases
+curl -fsSL https://raw.githubusercontent.com/SourisCG/SourisDW/main/install.sh | bash
 ```
 
-### Basic Usage
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/SourisCG/SourisDW/main/install.ps1 | iex
+```
+
+### Manual Download
+
+**Linux:**
+```bash
+curl -sL https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64 -o souris-dw
+chmod +x souris-dw
+sudo mv souris-dw /usr/local/bin/
+```
+
+**macOS:**
+```bash
+curl -sL https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-x86_64 -o souris-dw
+chmod +x souris-dw
+sudo mv souris-dw /usr/local/bin/
+```
+
+**Windows:**
+Download `souris-dw-windows-x86_64.exe` from [releases](https://github.com/SourisCG/SourisDW/releases) and add to your PATH.
+
+### Verify Installation
+
+```bash
+souris-dw --version
+```
+
+---
+
+## Usage
+
+### CLI Mode
 
 ```bash
 # Download video
@@ -82,44 +110,10 @@ souris-dw tui
 
 # Update dependencies
 souris-dw update
-```
-
----
-
-## Usage
-
-### CLI Mode
-
-```bash
-# Download video with specific format and quality
-souris-dw download "URL" --format mp4 --quality 1080p
-
-# Download audio only
-souris-dw download "URL" --audio-only --format flac --quality 320
-
-# Download to specific directory
-souris-dw download "URL" --output ~/Music
-
-# Download with metadata
-souris-dw download "URL" --embed-metadata --embed-thumbnail
-
-# Download playlist with parallel downloads
-souris-dw download "PLAYLIST_URL" --parallel 8
-
-# Get info as JSON (for scripting)
-souris-dw info "URL" --json
-
-# Search and get results as JSON
-souris-dw search "query" --json
 
 # Configuration
 souris-dw config show
 souris-dw config set download.default_format mp3
-souris-dw config set download.default_quality 320
-
-# Dependencies
-souris-dw deps status
-souris-dw deps update
 ```
 
 ### TUI Mode
@@ -141,43 +135,14 @@ use souris_dw::SourisDW;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Builder: configure defaults
     let dw = SourisDW::builder()
-        .auto_update(true)
-        .embed_metadata(true)
         .format("mp4")
         .quality("1080p")
         .output("./downloads")
-        .parallel(4)
         .build()
         .await?;
 
-    // Download with defaults
     dw.download("https://youtube.com/watch?v=xxx").await?;
-
-    // Download with overrides
-    dw.download_audio("https://youtube.com/watch?v=xxx")
-        .format("flac")
-        .quality("lossless")
-        .await?;
-
-    // Download playlist
-    dw.download_playlist("https://youtube.com/playlist?list=xxx")
-        .parallel(8)
-        .await?;
-
-    // Get info
-    let info = dw.info("https://youtube.com/watch?v=xxx").await?;
-    println!("Title: {}", info.title);
-
-    // Search
-    let results = dw.search("never gonna give you up").await?;
-    for item in results {
-        println!("{}: {}", item.title, item.url);
-    }
-
-    // Update dependencies
-    dw.update().await?;
 
     Ok(())
 }
@@ -321,8 +286,8 @@ max_retries = 3
 # - ffmpeg (for runtime)
 
 # Clone
-git clone https://github.com/souris/souris-dw.git
-cd souris-dw
+git clone https://github.com/SourisCG/SourisDW.git
+cd SourisDW
 
 # Build
 cargo build --release
@@ -344,6 +309,20 @@ cargo build --release
 
 ---
 
+## SDKs
+
+Official SDKs with fluent API for multiple languages:
+
+| Language | Package |
+|----------|---------|
+| Python | `pip install souris-dw` |
+| Node.js | `npm install souris-dw` |
+| Go | `go get github.com/SourisCG/SourisDW-go` |
+| Java | Maven: `io.souris:souris-dw` |
+| C# | NuGet: `SourisDW` |
+
+---
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and module structure
@@ -351,6 +330,8 @@ cargo build --release
 - [Library Guide](docs/LIBRARY.md) - Using SourisDW as a Rust library
 - [Integration Guide](docs/INTEGRATION.md) - Using SourisDW from other languages
 - [Cross-Platform](docs/CROSS_PLATFORM.md) - Platform-specific notes
+- [Contributing](CONTRIBUTING.md) - How to contribute
+- [Security](SECURITY.md) - Security policy
 
 ---
 

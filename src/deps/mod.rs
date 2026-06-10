@@ -1,14 +1,15 @@
+pub mod ffmpeg;
 pub mod platform;
 pub mod yt_dlp;
-pub mod ffmpeg;
 
-use crate::error::Result;
-use crate::deps::yt_dlp::YtDlp;
 use crate::deps::ffmpeg::FFmpeg;
+use crate::deps::yt_dlp::YtDlp;
+use crate::error::Result;
 
 pub struct DepManager {
     yt_dlp: YtDlp,
     ffmpeg: FFmpeg,
+    #[allow(dead_code)]
     auto_update: bool,
 }
 

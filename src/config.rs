@@ -1,7 +1,7 @@
+use crate::deps::platform;
+use crate::error::{Result, SourisError};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use crate::error::{Result, SourisError};
-use crate::deps::platform;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -48,9 +48,7 @@ impl Default for AppConfig {
                 auto_update: true,
                 channel: "nightly".to_string(),
             },
-            ffmpeg: FFmpegConfig {
-                auto_update: true,
-            },
+            ffmpeg: FFmpegConfig { auto_update: true },
             download: DownloadConfig {
                 default_format: "mp4".to_string(),
                 default_quality: "1080p".to_string(),
@@ -88,11 +86,10 @@ impl AppConfig {
             return Ok(config);
         }
 
-        let contents = fs_err::read_to_string(&path)
-            .map_err(|e| SourisError::io(&path, e))?;
+        let contents = fs_err::read_to_string(&path).map_err(|e| SourisError::io(&path, e))?;
 
-        let config: AppConfig = toml::from_str(&contents)
-            .map_err(|e| SourisError::ConfigError(e.to_string()))?;
+        let config: AppConfig =
+            toml::from_str(&contents).map_err(|e| SourisError::ConfigError(e.to_string()))?;
 
         Ok(config)
     }
@@ -105,11 +102,10 @@ impl AppConfig {
             crate::utils::fs::ensure_dir(parent)?;
         }
 
-        let contents = toml::to_string_pretty(self)
-            .map_err(|e| SourisError::ConfigError(e.to_string()))?;
+        let contents =
+            toml::to_string_pretty(self).map_err(|e| SourisError::ConfigError(e.to_string()))?;
 
-        fs_err::write(&path, contents)
-            .map_err(|e| SourisError::io(&path, e))?;
+        fs_err::write(&path, contents).map_err(|e| SourisError::io(&path, e))?;
 
         Ok(())
     }
@@ -135,14 +131,16 @@ impl AppConfig {
     pub fn set(&mut self, key: &str, value: &str) -> Result<()> {
         match key {
             "yt_dlp.auto_update" => {
-                self.yt_dlp.auto_update = value.parse()
+                self.yt_dlp.auto_update = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid boolean: {}", value)))?;
             }
             "yt_dlp.channel" => {
                 self.yt_dlp.channel = value.to_string();
             }
             "ffmpeg.auto_update" => {
-                self.ffmpeg.auto_update = value.parse()
+                self.ffmpeg.auto_update = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid boolean: {}", value)))?;
             }
             "download.default_format" => {
@@ -155,27 +153,33 @@ impl AppConfig {
                 self.download.output_dir = PathBuf::from(value);
             }
             "download.parallel" => {
-                self.download.parallel = value.parse()
+                self.download.parallel = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid number: {}", value)))?;
             }
             "download.embed_metadata" => {
-                self.download.embed_metadata = value.parse()
+                self.download.embed_metadata = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid boolean: {}", value)))?;
             }
             "download.embed_thumbnail" => {
-                self.download.embed_thumbnail = value.parse()
+                self.download.embed_thumbnail = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid boolean: {}", value)))?;
             }
             "download.embed_subtitles" => {
-                self.download.embed_subtitles = value.parse()
+                self.download.embed_subtitles = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid boolean: {}", value)))?;
             }
             "download.timeout" => {
-                self.download.timeout = value.parse()
+                self.download.timeout = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid number: {}", value)))?;
             }
             "download.max_retries" => {
-                self.download.max_retries = value.parse()
+                self.download.max_retries = value
+                    .parse()
                     .map_err(|_| SourisError::ConfigError(format!("Invalid number: {}", value)))?;
             }
             _ => return Err(SourisError::ConfigError(format!("Unknown key: {}", key))),

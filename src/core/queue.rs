@@ -1,9 +1,9 @@
+use crate::core::downloader::SourisDW;
+use crate::core::request::DownloadRequestBuilder;
+use crate::core::types::DownloadResult;
+use crate::error::Result;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use crate::error::Result;
-use crate::core::types::DownloadResult;
-use crate::core::request::DownloadRequestBuilder;
-use crate::core::downloader::SourisDW;
 
 pub struct DownloadQueue {
     semaphore: Arc<Semaphore>,

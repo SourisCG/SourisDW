@@ -64,7 +64,13 @@ pub fn create_progress_channel() -> (ProgressSender, ProgressReceiver) {
 }
 
 impl ProgressEvent {
-    pub fn init(url: &str, platform: &str, title: &str, media_type: &str, total_items: usize) -> Self {
+    pub fn init(
+        url: &str,
+        platform: &str,
+        title: &str,
+        media_type: &str,
+        total_items: usize,
+    ) -> Self {
         ProgressEvent::Init {
             url: url.to_string(),
             platform: platform.to_string(),

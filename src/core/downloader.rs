@@ -1,8 +1,8 @@
-use crate::error::Result;
-use crate::deps::DepManager;
-use crate::core::types::*;
-use crate::core::request::DownloadRequestBuilder;
 use crate::core::progress::ProgressSender;
+use crate::core::request::DownloadRequestBuilder;
+use crate::core::types::*;
+use crate::deps::DepManager;
+use crate::error::Result;
 use crate::extractors::resolver::Resolver;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,6 +21,12 @@ pub struct SourisDWBuilder {
     on_progress: Option<ProgressSender>,
     spotify_client_id: Option<String>,
     spotify_client_secret: Option<String>,
+}
+
+impl Default for SourisDWBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SourisDWBuilder {
@@ -127,9 +133,9 @@ impl SourisDWBuilder {
             resolver: Arc::new(resolver),
             default_format: self.format,
             default_quality: self.quality,
-            default_output: self.output.unwrap_or_else(|| {
-                dirs_or_default().join("downloads")
-            }),
+            default_output: self
+                .output
+                .unwrap_or_else(|| dirs_or_default().join("downloads")),
             parallel: self.parallel,
             embed_metadata: self.embed_metadata,
             embed_thumbnail: self.embed_thumbnail,
@@ -156,7 +162,9 @@ pub struct SourisDW {
     timeout: u64,
     max_retries: u32,
     on_progress: Option<ProgressSender>,
+    #[allow(dead_code)]
     spotify_client_id: Option<String>,
+    #[allow(dead_code)]
     spotify_client_secret: Option<String>,
 }
 

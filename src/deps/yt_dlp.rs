@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
-use crate::error::{Result, SourisError};
 use crate::deps::platform;
+use crate::error::{Result, SourisError};
 use crate::utils::fs;
+use std::path::{Path, PathBuf};
 
 pub struct YtDlp {
     binary_path: PathBuf,
@@ -29,7 +29,10 @@ impl YtDlp {
 
         if binary_path.exists() {
             let version = Self::get_version(&binary_path).await.ok();
-            return Ok(Self { binary_path, version });
+            return Ok(Self {
+                binary_path,
+                version,
+            });
         }
 
         Self::download(&bin_dir).await
@@ -44,12 +47,13 @@ impl YtDlp {
 
         tracing::info!("Downloading yt-dlp from: {}", url);
 
-        let response = reqwest::get(&url)
-            .await
-            .map_err(|e| SourisError::DependencyDownloadFailed {
-                name: "yt-dlp".into(),
-                reason: e.to_string(),
-            })?;
+        let response =
+            reqwest::get(&url)
+                .await
+                .map_err(|e| SourisError::DependencyDownloadFailed {
+                    name: "yt-dlp".into(),
+                    reason: e.to_string(),
+                })?;
 
         if !response.status().is_success() {
             return Err(SourisError::DependencyDownloadFailed {
@@ -58,10 +62,13 @@ impl YtDlp {
             });
         }
 
-        let bytes = response.bytes().await.map_err(|e| SourisError::DependencyDownloadFailed {
-            name: "yt-dlp".into(),
-            reason: e.to_string(),
-        })?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| SourisError::DependencyDownloadFailed {
+                name: "yt-dlp".into(),
+                reason: e.to_string(),
+            })?;
 
         fs_err::write(&binary_path, &bytes).map_err(|e| SourisError::io(&binary_path, e))?;
         fs::set_executable(&binary_path)?;
@@ -70,7 +77,10 @@ impl YtDlp {
 
         tracing::info!("yt-dlp installed at: {}", binary_path.display());
 
-        Ok(Self { binary_path, version })
+        Ok(Self {
+            binary_path,
+            version,
+        })
     }
 
     pub async fn update_if_needed(&self) -> Result<Option<Self>> {
@@ -130,12 +140,14 @@ impl YtDlp {
                 reason: e.to_string(),
             })?;
 
-        let json: serde_json::Value = response.json().await.map_err(|e| {
-            SourisError::DependencyUpdateFailed {
-                name: "yt-dlp".into(),
-                reason: e.to_string(),
-            }
-        })?;
+        let json: serde_json::Value =
+            response
+                .json()
+                .await
+                .map_err(|e| SourisError::DependencyUpdateFailed {
+                    name: "yt-dlp".into(),
+                    reason: e.to_string(),
+                })?;
 
         json.get("tag_name")
             .and_then(|v| v.as_str())

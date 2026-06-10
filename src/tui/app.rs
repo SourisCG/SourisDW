@@ -62,6 +62,12 @@ pub struct AppConfigState {
     pub auto_update: bool,
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     pub fn new() -> Self {
         Self {
@@ -227,7 +233,12 @@ impl AppState {
     pub fn get_active_count(&self) -> usize {
         self.downloads
             .iter()
-            .filter(|d| matches!(d.status, DownloadStatus::Downloading | DownloadStatus::PostProcessing))
+            .filter(|d| {
+                matches!(
+                    d.status,
+                    DownloadStatus::Downloading | DownloadStatus::PostProcessing
+                )
+            })
             .count()
     }
 

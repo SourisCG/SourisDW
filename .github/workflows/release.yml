@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: souris-dw-linux-x86_64
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: souris-dw-linux-x86_64-musl
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: souris-dw-linux-aarch64
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: souris-dw-macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: souris-dw-macos-aarch64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: souris-dw-windows-x86_64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build with cross
+        if: matrix.cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+          cross build --release --target ${{ matrix.target }}
+
+      - name: Build
+        if: ${{ !matrix.cross }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp target/${{ matrix.target }}/release/souris-dw ${{ matrix.artifact }}
+          chmod +x ${{ matrix.artifact }}
+
+      - name: Rename artifact (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cp target/${{ matrix.target }}/release/souris-dw.exe ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create checksums
+        run: |
+          cd artifacts
+          for dir in */; do
+            cd "$dir"
+            for file in *; do
+              sha256sum "$file" >> ../checksums-sha256.txt
+            done
+            cd ..
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/souris-dw-linux-x86_64/souris-dw-linux-x86_64
+            artifacts/souris-dw-linux-x86_64-musl/souris-dw-linux-x86_64-musl
+            artifacts/souris-dw-linux-aarch64/souris-dw-linux-aarch64
+            artifacts/souris-dw-macos-x86_64/souris-dw-macos-x86_64
+            artifacts/souris-dw-macos-aarch64/souris-dw-macos-aarch64
+            artifacts/souris-dw-windows-x86_64.exe/souris-dw-windows-x86_64.exe
+            artifacts/checksums-sha256.txt

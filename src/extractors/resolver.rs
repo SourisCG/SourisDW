@@ -1,7 +1,7 @@
-use crate::error::{Result, SourisError};
 use crate::core::types::*;
-use crate::extractors::youtube::YouTubeExtractor;
+use crate::error::{Result, SourisError};
 use crate::extractors::spotify::SpotifyExtractor;
+use crate::extractors::youtube::YouTubeExtractor;
 
 #[derive(Debug, Clone)]
 pub enum Platform {
@@ -25,10 +25,16 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub async fn new(spotify_client_id: Option<String>, spotify_client_secret: Option<String>) -> Result<Self> {
+    pub async fn new(
+        spotify_client_id: Option<String>,
+        spotify_client_secret: Option<String>,
+    ) -> Result<Self> {
         let youtube = YouTubeExtractor::new().await?;
         let spotify = if spotify_client_id.is_some() && spotify_client_secret.is_some() {
-            Some(SpotifyExtractor::new(spotify_client_id, spotify_client_secret))
+            Some(SpotifyExtractor::new(
+                spotify_client_id,
+                spotify_client_secret,
+            ))
         } else {
             None
         };
@@ -57,8 +63,6 @@ impl Resolver {
             ResourceType::Track
         } else if url_lower.contains("/album/") {
             ResourceType::Album
-        } else if url_lower.contains("/watch") || url_lower.contains("youtu.be/") {
-            ResourceType::Video
         } else {
             ResourceType::Video
         }
@@ -69,21 +73,19 @@ impl Resolver {
         let resource_type = self.detect_resource_type(url);
 
         match platform {
-            Platform::YouTube => {
-                match resource_type {
-                    ResourceType::Playlist => {
-                        let items = self.youtube.extract_playlist_info(url).await?;
-                        if let Some(first) = items.into_iter().next() {
-                            Ok(first)
-                        } else {
-                            Err(SourisError::DownloadFailed {
-                                reason: "Playlist is empty".into(),
-                            })
-                        }
+            Platform::YouTube => match resource_type {
+                ResourceType::Playlist => {
+                    let items = self.youtube.extract_playlist_info(url).await?;
+                    if let Some(first) = items.into_iter().next() {
+                        Ok(first)
+                    } else {
+                        Err(SourisError::DownloadFailed {
+                            reason: "Playlist is empty".into(),
+                        })
                     }
-                    _ => self.youtube.extract_info(url).await,
                 }
-            }
+                _ => self.youtube.extract_info(url).await,
+            },
             Platform::Spotify => {
                 let spotify = self.spotify.as_ref().ok_or_else(|| {
                     SourisError::ConfigError(
@@ -146,6 +148,7 @@ impl Resolver {
         self.youtube.search(query, limit).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn resolve_download(
         &self,
         url: &str,
@@ -160,56 +163,52 @@ impl Resolver {
         let resource_type = self.detect_resource_type(url);
 
         match platform {
-            Platform::YouTube => {
-                match resource_type {
-                    ResourceType::Playlist => {
-                        let results = self
-                            .youtube
-                            .download_playlist(
-                                url,
-                                format,
-                                quality,
-                                output_dir,
-                                embed_metadata,
-                                embed_thumbnail,
-                                embed_subtitles,
-                                4,
-                            )
-                            .await?;
+            Platform::YouTube => match resource_type {
+                ResourceType::Playlist => {
+                    let results = self
+                        .youtube
+                        .download_playlist(
+                            url,
+                            format,
+                            quality,
+                            output_dir,
+                            embed_metadata,
+                            embed_thumbnail,
+                            embed_subtitles,
+                            4,
+                        )
+                        .await?;
 
-                        let success = results.iter().all(|r| r.success);
-                        Ok(DownloadResult {
-                            success,
-                            path: None,
-                            size: None,
-                            error: if success {
-                                None
-                            } else {
-                                Some("Some downloads failed".into())
-                            },
-                            elapsed: None,
-                        })
-                    }
-                    _ => {
-                        self.youtube
-                            .download(
-                                url,
-                                format,
-                                quality,
-                                output_dir,
-                                embed_metadata,
-                                embed_thumbnail,
-                                embed_subtitles,
-                            )
-                            .await
-                    }
+                    let success = results.iter().all(|r| r.success);
+                    Ok(DownloadResult {
+                        success,
+                        path: None,
+                        size: None,
+                        error: if success {
+                            None
+                        } else {
+                            Some("Some downloads failed".into())
+                        },
+                        elapsed: None,
+                    })
                 }
-            }
+                _ => {
+                    self.youtube
+                        .download(
+                            url,
+                            format,
+                            quality,
+                            output_dir,
+                            embed_metadata,
+                            embed_thumbnail,
+                            embed_subtitles,
+                        )
+                        .await
+                }
+            },
             Platform::Spotify => {
                 let spotify = self.spotify.as_ref().ok_or_else(|| {
-                    SourisError::ConfigError(
-                        "Spotify credentials not configured".into()
-                    )
+                    SourisError::ConfigError("Spotify credentials not configured".into())
                 })?;
 
                 match resource_type {
@@ -232,9 +231,9 @@ impl Resolver {
                                 )
                                 .await?;
 
-                            download_result.path = download_result.path.map(|p| {
-                                p.replace(&result.title, &track.name)
-                            });
+                            download_result.path = download_result
+                                .path
+                                .map(|p| p.replace(&result.title, &track.name));
 
                             Ok(download_result)
                         } else {

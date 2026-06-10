@@ -1,6 +1,6 @@
-use unicode_normalization::UnicodeNormalization;
 use crate::error::Result;
 use crate::error::SourisError;
+use unicode_normalization::UnicodeNormalization;
 
 pub fn normalize_nfc(s: &str) -> String {
     s.nfc().collect()

@@ -1,6 +1,19 @@
-/target
-*.swp
-*.swo
-*~
+/target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local

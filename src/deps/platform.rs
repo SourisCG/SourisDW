@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use directories::ProjectDirs;
+use std::path::PathBuf;
 
 pub const APP_NAME: &str = "souris-dw";
 pub const APP_ORG: &str = "souris";

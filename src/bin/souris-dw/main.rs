@@ -1,6 +1,5 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use serde_json;
 
 #[derive(Parser)]
 #[command(name = "souris-dw")]
@@ -163,6 +162,7 @@ async fn main() {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_download(
     url: &str,
     format: Option<&str>,
@@ -177,8 +177,7 @@ async fn handle_download(
     json: bool,
     no_auto_update: bool,
 ) -> Result<()> {
-    let mut builder = souris_dw::SourisDW::builder()
-        .auto_update(!no_auto_update);
+    let mut builder = souris_dw::SourisDW::builder().auto_update(!no_auto_update);
 
     if let Some(f) = format {
         builder = builder.format_str(f)?;
@@ -221,12 +220,15 @@ async fn handle_download(
     let result = req.run().await?;
 
     if json {
-        println!("{}", serde_json::to_string(&serde_json::json!({
-            "type": "complete",
-            "success": result.success,
-            "path": result.path,
-            "size": result.size
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "type": "complete",
+                "success": result.success,
+                "path": result.path,
+                "size": result.size
+            }))?
+        );
     } else {
         if result.success {
             println!("Downloaded: {}", result.path.unwrap_or_default());
@@ -310,7 +312,12 @@ async fn handle_update(
             println!("{}", serde_json::to_string(&status)?);
         } else {
             for dep in &status {
-                println!("{}: {} ({})", dep.name, dep.version.as_deref().unwrap_or("not installed"), dep.path);
+                println!(
+                    "{}: {} ({})",
+                    dep.name,
+                    dep.version.as_deref().unwrap_or("not installed"),
+                    dep.path
+                );
             }
         }
         return Ok(());
@@ -322,7 +329,11 @@ async fn handle_update(
         println!("{}", serde_json::to_string(&status)?);
     } else {
         for dep in &status {
-            println!("{}: updated to {}", dep.name, dep.version.as_deref().unwrap_or("unknown"));
+            println!(
+                "{}: updated to {}",
+                dep.name,
+                dep.version.as_deref().unwrap_or("unknown")
+            );
         }
     }
 
@@ -336,25 +347,33 @@ async fn handle_config(action: ConfigAction, json: bool) -> Result<()> {
         ConfigAction::Get { key } => {
             if let Some(value) = config.get(&key) {
                 if json {
-                    println!("{}", serde_json::to_string(&serde_json::json!({
-                        "key": key,
-                        "value": value
-                    }))?);
+                    println!(
+                        "{}",
+                        serde_json::to_string(&serde_json::json!({
+                            "key": key,
+                            "value": value
+                        }))?
+                    );
                 } else {
                     println!("{}", value);
                 }
             } else {
-                return Err(souris_dw::SourisError::ConfigError(format!("Unknown key: {}", key)).into());
+                return Err(
+                    souris_dw::SourisError::ConfigError(format!("Unknown key: {}", key)).into(),
+                );
             }
         }
         ConfigAction::Set { key, value } => {
             config.set(&key, &value)?;
             if json {
-                println!("{}", serde_json::to_string(&serde_json::json!({
-                    "key": key,
-                    "value": value,
-                    "status": "ok"
-                }))?);
+                println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "key": key,
+                        "value": value,
+                        "status": "ok"
+                    }))?
+                );
             } else {
                 println!("Set {} = {}", key, value);
             }
@@ -403,7 +422,11 @@ async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
                 println!("{}", serde_json::to_string(&status)?);
             } else {
                 for dep in &status {
-                    println!("{}: updated to {}", dep.name, dep.version.as_deref().unwrap_or("unknown"));
+                    println!(
+                        "{}: updated to {}",
+                        dep.name,
+                        dep.version.as_deref().unwrap_or("unknown")
+                    );
                 }
             }
         }

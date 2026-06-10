@@ -1,6 +1,6 @@
-use crate::error::{Result, SourisError};
 use crate::core::types::*;
 use crate::deps::yt_dlp::YtDlp;
+use crate::error::{Result, SourisError};
 use serde_json::Value;
 
 pub struct YouTubeExtractor {
@@ -64,7 +64,12 @@ impl YouTubeExtractor {
     pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchItem>> {
         let search_query = format!("ytsearch{}:{}", limit, query);
         let output = tokio::process::Command::new(self.yt_dlp.binary_path())
-            .args(["--dump-json", "--flat-playlist", "--no-download", &search_query])
+            .args([
+                "--dump-json",
+                "--flat-playlist",
+                "--no-download",
+                &search_query,
+            ])
             .output()
             .await
             .map_err(|e| SourisError::DownloadFailed {
@@ -110,6 +115,7 @@ impl YouTubeExtractor {
         Ok(items)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn download(
         &self,
         url: &str,
@@ -189,9 +195,12 @@ impl YouTubeExtractor {
 
         cmd.arg(url);
 
-        let output = cmd.output().await.map_err(|e| SourisError::DownloadFailed {
-            reason: e.to_string(),
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| SourisError::DownloadFailed {
+                reason: e.to_string(),
+            })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -212,6 +221,7 @@ impl YouTubeExtractor {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn download_playlist(
         &self,
         url: &str,
@@ -270,6 +280,7 @@ impl YouTubeExtractor {
         Ok(results)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn download_single(
         yt_dlp_path: &std::path::Path,
         url: &str,
@@ -315,9 +326,12 @@ impl YouTubeExtractor {
 
         cmd.arg(url);
 
-        let output = cmd.output().await.map_err(|e| SourisError::DownloadFailed {
-            reason: e.to_string(),
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| SourisError::DownloadFailed {
+                reason: e.to_string(),
+            })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -348,7 +362,11 @@ impl YouTubeExtractor {
 
         let media_type = if info["_type"].as_str() == Some("playlist") {
             MediaType::Playlist
-        } else if info["vcodec"].as_str().map(|s| s != "none").unwrap_or(false) {
+        } else if info["vcodec"]
+            .as_str()
+            .map(|s| s != "none")
+            .unwrap_or(false)
+        {
             MediaType::Video
         } else {
             MediaType::Audio

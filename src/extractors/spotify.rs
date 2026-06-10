@@ -36,9 +36,12 @@ impl SpotifyExtractor {
             });
         }
 
-        let data: Value = response.json().await.map_err(|e| SourisError::DownloadFailed {
-            reason: e.to_string(),
-        })?;
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|e| SourisError::DownloadFailed {
+                reason: e.to_string(),
+            })?;
 
         let name = data["name"].as_str().unwrap_or("Unknown").to_string();
         let artist = data["artists"]
@@ -47,7 +50,10 @@ impl SpotifyExtractor {
             .and_then(|a| a["name"].as_str())
             .unwrap_or("Unknown")
             .to_string();
-        let album = data["album"]["name"].as_str().unwrap_or("Unknown").to_string();
+        let album = data["album"]["name"]
+            .as_str()
+            .unwrap_or("Unknown")
+            .to_string();
         let duration_ms = data["duration_ms"].as_u64().unwrap_or(0);
         let thumbnail = data["album"]["images"]
             .as_array()
@@ -92,9 +98,12 @@ impl SpotifyExtractor {
                 });
             }
 
-            let data: Value = response.json().await.map_err(|e| SourisError::DownloadFailed {
-                reason: e.to_string(),
-            })?;
+            let data: Value = response
+                .json()
+                .await
+                .map_err(|e| SourisError::DownloadFailed {
+                    reason: e.to_string(),
+                })?;
 
             if let Some(tracks) = data["items"].as_array() {
                 for item in tracks {
@@ -156,7 +165,9 @@ impl SpotifyExtractor {
             }
         }
 
-        Err(SourisError::InvalidUrl { url: url.to_string() })
+        Err(SourisError::InvalidUrl {
+            url: url.to_string(),
+        })
     }
 
     fn extract_playlist_id(&self, url: &str) -> Result<String> {
@@ -172,7 +183,9 @@ impl SpotifyExtractor {
             }
         }
 
-        Err(SourisError::InvalidUrl { url: url.to_string() })
+        Err(SourisError::InvalidUrl {
+            url: url.to_string(),
+        })
     }
 
     async fn get_access_token(&self) -> Result<String> {
@@ -180,10 +193,9 @@ impl SpotifyExtractor {
             .client_id
             .as_deref()
             .ok_or_else(|| SourisError::ConfigError("Spotify client_id not configured".into()))?;
-        let client_secret = self
-            .client_secret
-            .as_deref()
-            .ok_or_else(|| SourisError::ConfigError("Spotify client_secret not configured".into()))?;
+        let client_secret = self.client_secret.as_deref().ok_or_else(|| {
+            SourisError::ConfigError("Spotify client_secret not configured".into())
+        })?;
 
         let client = reqwest::Client::new();
         let params = [
@@ -207,9 +219,12 @@ impl SpotifyExtractor {
             });
         }
 
-        let data: Value = response.json().await.map_err(|e| SourisError::DownloadFailed {
-            reason: e.to_string(),
-        })?;
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|e| SourisError::DownloadFailed {
+                reason: e.to_string(),
+            })?;
 
         data["access_token"]
             .as_str()

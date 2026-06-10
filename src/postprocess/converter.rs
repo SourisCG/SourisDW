@@ -2,7 +2,14 @@ use crate::error::Result;
 
 pub async fn convert_audio(input: &str, output: &str, format: &str) -> Result<()> {
     let status = tokio::process::Command::new("ffmpeg")
-        .args(["-i", input, "-vn", "-acodec", &codec_for_format(format), output])
+        .args([
+            "-i",
+            input,
+            "-vn",
+            "-acodec",
+            codec_for_format(format),
+            output,
+        ])
         .status()
         .await
         .map_err(|e| crate::error::SourisError::FFmpegError(e.to_string()))?;

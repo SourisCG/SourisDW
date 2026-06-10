@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
 use crate::error::Result;
 use crate::error::SourisError;
+use std::path::{Path, PathBuf};
 
 pub fn ensure_dir(path: &Path) -> Result<()> {
     if !path.exists() {
