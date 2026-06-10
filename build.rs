@@ -65,7 +65,7 @@ fn download_and_decompress(
     let temp_file = if skip_decompress {
         dest.with_extension("exe")
     } else {
-        dest.with_extension("tmp")
+        dest.with_extension("gz")
     };
 
     let status = Command::new("curl")

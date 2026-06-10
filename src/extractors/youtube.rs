@@ -169,9 +169,9 @@ impl YouTubeExtractor {
                 _ => None,
             });
             let format_str = if let Some(abr) = abr {
-                format!("-f ba[abr<={}]/ba", abr)
+                format!("bestaudio[abr<={}]/bestaudio", abr)
             } else {
-                "-f ba".to_string()
+                "bestaudio".to_string()
             };
             cmd.args(["-f", &format_str]);
             cmd.args(["-x", "--audio-format", "mp3"]);
@@ -189,9 +189,9 @@ impl YouTubeExtractor {
                         _ => None,
                     });
                     if let Some(abr) = abr {
-                        format!("-f ba[abr<={}]/ba", abr)
+                        format!("bestaudio[abr<={}]/bestaudio", abr)
                     } else {
-                        "-f ba".to_string()
+                        "bestaudio".to_string()
                     }
                 }
                 Format::Video(_) => {
@@ -208,9 +208,9 @@ impl YouTubeExtractor {
                         _ => None,
                     });
                     if let Some(h) = height {
-                        format!("-f bv[height<={}]+ba/b[height<={}]", h, h)
+                        format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
                     } else {
-                        "-f bv+ba/b".to_string()
+                        "bestvideo+bestaudio/best".to_string()
                     }
                 }
             };
@@ -352,8 +352,8 @@ impl YouTubeExtractor {
 
         if let Some(f) = format {
             let format_str = match f {
-                Format::Audio(_) => "-f ba".to_string(),
-                Format::Video(_) => "-f bv+ba/b".to_string(),
+                Format::Audio(_) => "bestaudio".to_string(),
+                Format::Video(_) => "bestvideo+bestaudio/best".to_string(),
             };
             cmd.args(["-f", &format_str]);
 
