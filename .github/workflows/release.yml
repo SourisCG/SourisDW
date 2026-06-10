@@ -95,7 +95,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          dnf install -y gcc
+          dnf install -y git gcc curl
 
       - name: Install Rust
         run: |
