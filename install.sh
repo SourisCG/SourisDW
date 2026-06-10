@@ -13,6 +13,10 @@ success() {
     printf "\033[1;32m%s\033[0m\n" "$1"
 }
 
+warn() {
+    printf "\033[1;33m%s\033[0m\n" "$1"
+}
+
 error() {
     printf "\033[1;31m%s\033[0m\n" "$1" >&2
     exit 1
@@ -56,22 +60,99 @@ get_download_url() {
     esac
 }
 
-install_binary() {
+download() {
     local url="$1"
-    local os="$2"
-    local install_dir="$3"
-
-    info "Downloading ${BINARY} from ${url}..."
+    local dest="$2"
 
     if command -v curl &> /dev/null; then
-        curl -fsSL "$url" -o "${install_dir}/${BINARY}"
+        curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$dest" || error "Download failed: curl returned $?"
     elif command -v wget &> /dev/null; then
-        wget -qO "${install_dir}/${BINARY}" "$url"
+        wget -q --tries=3 -O "$dest" "$url" || error "Download failed: wget returned $?"
     else
         error "Neither curl nor wget found. Please install one of them."
     fi
+}
 
-    chmod +x "${install_dir}/${BINARY}"
+verify_binary() {
+    local path="$1"
+
+    if [ ! -f "$path" ]; then
+        error "Binary not found at ${path}"
+    fi
+
+    if [ ! -s "$path" ]; then
+        rm -f "$path"
+        error "Downloaded file is empty. The URL may be wrong or the release may not exist."
+    fi
+
+    if file "$path" 2>/dev/null | grep -qi "html\|text"; then
+        rm -f "$path"
+        error "Downloaded file is not a binary (got HTML/text). The URL may be wrong."
+    fi
+
+    if [ "$(uname -s)" != "MINGW"* ] && [ "$(uname -s)" != "MSYS"* ] && [ "$(uname -s)" != "CYGWIN"* ]; then
+        chmod +x "$path"
+    fi
+
+    if ! "$path" --version &>/dev/null; then
+        warn "Warning: binary downloaded but --version check failed. It may still work."
+    fi
+}
+
+add_to_path() {
+    local dir="$1"
+    local shell_name
+    shell_name=$(basename "${SHELL:-/bin/bash}")
+
+    local config_file=""
+    case "$shell_name" in
+        bash)
+            if [ -f "$HOME/.bashrc" ]; then
+                config_file="$HOME/.bashrc"
+            elif [ -f "$HOME/.bash_profile" ]; then
+                config_file="$HOME/.bash_profile"
+            fi
+            ;;
+        zsh)
+            config_file="$HOME/.zshrc"
+            ;;
+        fish)
+            config_file="$HOME/.config/fish/config.fish"
+            ;;
+    esac
+
+    if [ -z "$config_file" ]; then
+        warn "Could not detect shell config file. Add this manually:"
+        echo "  export PATH=\"${dir}:\$PATH\""
+        return
+    fi
+
+    if grep -qF "$dir" "$config_file" 2>/dev/null; then
+        info "PATH already configured in ${config_file}"
+        return
+    fi
+
+    printf "\033[1;34mAdd %s to PATH in %s? [Y/n] \033[0m" "$dir" "$config_file"
+    read -r answer </dev/tty
+    answer="${answer:-Y}"
+
+    case "$answer" in
+        [Yy]*)
+            if [ "$shell_name" = "fish" ]; then
+                echo "set -gx PATH $dir \$PATH" >> "$config_file"
+            else
+                echo "" >> "$config_file"
+                echo "# Added by souris-dw installer" >> "$config_file"
+                echo "export PATH=\"${dir}:\$PATH\"" >> "$config_file"
+            fi
+            success "PATH updated in ${config_file}. Restart your shell or run:"
+            echo "  source ${config_file}"
+            ;;
+        *)
+            info "Skipped. Add manually:"
+            echo "  export PATH=\"${dir}:\$PATH\""
+            ;;
+    esac
 }
 
 main() {
@@ -101,19 +182,24 @@ main() {
     local url
     url=$(get_download_url "$os" "$arch" "$VERSION")
 
-    install_binary "$url" "$os" "$install_dir"
+    info "Downloading from ${url}..."
+    download "$url" "${install_dir}/${BINARY}"
+
+    info "Verifying binary..."
+    verify_binary "${install_dir}/${BINARY}"
+
+    success "${BINARY} installed to ${install_dir}/${BINARY}"
 
     if [ "$os" != "windows" ]; then
         if ! echo "$PATH" | grep -q "$install_dir"; then
-            info "Add ${install_dir} to your PATH:"
-            echo "  export PATH=\"${install_dir}:\$PATH\""
+            add_to_path "$install_dir"
+        else
+            info "${install_dir} is already in your PATH"
         fi
     fi
 
-    success "${BINARY} installed successfully to ${install_dir}/${BINARY}"
-
     if [ "$os" != "windows" ]; then
-        "${install_dir}/${BINARY}" --version 2>/dev/null || true
+        "${install_dir}/${BINARY}" --version
     fi
 }
 
