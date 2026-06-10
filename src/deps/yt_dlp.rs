@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 pub struct YtDlp {
     binary_path: PathBuf,
     version: Option<String>,
+    channel: String,
 }
 
 impl YtDlp {
@@ -17,11 +18,15 @@ impl YtDlp {
         self.version.as_deref()
     }
 
+    pub fn channel(&self) -> &str {
+        &self.channel
+    }
+
     pub fn is_installed(&self) -> bool {
         self.binary_path.exists()
     }
 
-    pub async fn ensure_installed() -> Result<Self> {
+    pub async fn ensure_installed(channel: &str) -> Result<Self> {
         let bin_dir = platform::bin_dir()
             .ok_or_else(|| SourisError::ConfigError("Cannot determine bin directory".into()))?;
         let binary_name = platform::yt_dlp_binary_name();
@@ -32,20 +37,21 @@ impl YtDlp {
             return Ok(Self {
                 binary_path,
                 version,
+                channel: channel.to_string(),
             });
         }
 
-        Self::download(&bin_dir).await
+        Self::download(&bin_dir, channel).await
     }
 
-    pub async fn download(bin_dir: &Path) -> Result<Self> {
+    pub async fn download(bin_dir: &Path, channel: &str) -> Result<Self> {
         fs::ensure_dir(bin_dir)?;
 
         let binary_name = platform::yt_dlp_binary_name();
         let binary_path = bin_dir.join(&binary_name);
-        let url = platform::yt_dlp_download_url("latest");
+        let url = platform::yt_dlp_download_url(channel);
 
-        tracing::info!("Downloading yt-dlp from: {}", url);
+        tracing::info!("Downloading yt-dlp (channel: {}) from: {}", channel, url);
 
         let response =
             reqwest::get(&url)
@@ -80,12 +86,13 @@ impl YtDlp {
         Ok(Self {
             binary_path,
             version,
+            channel: channel.to_string(),
         })
     }
 
     pub async fn update_if_needed(&self) -> Result<Option<Self>> {
         if !self.is_installed() {
-            return Ok(Some(Self::ensure_installed().await?));
+            return Ok(Some(Self::ensure_installed(&self.channel).await?));
         }
 
         match self.version.as_deref() {
@@ -99,14 +106,14 @@ impl YtDlp {
                 if needs_update {
                     tracing::info!("Updating yt-dlp: {:?} -> {}", self.version, latest);
                     let bin_dir = self.binary_path.parent().unwrap();
-                    Ok(Some(Self::download(bin_dir).await?))
+                    Ok(Some(Self::download(bin_dir, &self.channel).await?))
                 } else {
                     Ok(None)
                 }
             }
             None => {
                 let bin_dir = self.binary_path.parent().unwrap();
-                Ok(Some(Self::download(bin_dir).await?))
+                Ok(Some(Self::download(bin_dir, &self.channel).await?))
             }
         }
     }

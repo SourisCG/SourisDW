@@ -22,8 +22,8 @@ pub struct DepStatus {
 }
 
 impl DepManager {
-    pub async fn new(auto_update: bool) -> Result<Self> {
-        let yt_dlp = YtDlp::ensure_installed().await?;
+    pub async fn new(auto_update: bool, channel: &str) -> Result<Self> {
+        let yt_dlp = YtDlp::ensure_installed(channel).await?;
         let ffmpeg = FFmpeg::ensure_installed().await?;
 
         let manager = Self {

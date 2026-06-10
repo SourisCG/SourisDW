@@ -46,7 +46,7 @@ impl Default for AppConfig {
         Self {
             yt_dlp: YtDlpConfig {
                 auto_update: true,
-                channel: "nightly".to_string(),
+                channel: "stable".to_string(),
             },
             ffmpeg: FFmpegConfig { auto_update: true },
             download: DownloadConfig {

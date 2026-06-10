@@ -182,7 +182,9 @@ async fn handle_download(
     json: bool,
     no_auto_update: bool,
 ) -> Result<()> {
-    let mut builder = souris_dw::SourisDW::builder().auto_update(!no_auto_update);
+    let mut builder = souris_dw::SourisDW::builder()
+        .auto_update(!no_auto_update)
+        .yt_dlp_channel("stable");
 
     if let Some(f) = format {
         builder = builder.format_str(f)?;
@@ -246,6 +248,7 @@ async fn handle_download(
 async fn handle_info(url: &str, json: bool) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
+        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -276,6 +279,7 @@ async fn handle_search(
 ) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
+        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -306,6 +310,7 @@ async fn handle_update(
 ) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
+        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -398,6 +403,7 @@ async fn handle_config(action: ConfigAction, json: bool) -> Result<()> {
 async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
+        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -598,6 +604,8 @@ async fn handle_tui() -> Result<()> {
                                 {
                                     app.settings_index += 1;
                                 }
+                                let visible = terminal.size()?.height.saturating_sub(8) as usize;
+                                app.update_settings_scroll(visible);
                             } else if app.show_search {
                                 if app.search_index < app.search_results.len().saturating_sub(1) {
                                     app.search_index += 1;
@@ -639,6 +647,7 @@ async fn handle_tui() -> Result<()> {
                             } else if !app.input_buffer.is_empty() {
                                 let url = app.input_buffer.clone();
                                 let audio_only = app.config.audio_only;
+                                let audio_format = app.config.audio_format.clone();
                                 let format = app.config.default_format.clone();
                                 let quality = app.config.default_quality.clone();
                                 let output = app.config.output_dir.display().to_string();
@@ -656,12 +665,13 @@ async fn handle_tui() -> Result<()> {
                                     let result = async {
                                         let mut builder = souris_dw::SourisDW::builder()
                                             .auto_update(true)
+                                            .yt_dlp_channel("stable")
                                             .output(&output)
                                             .embed_metadata(embed_metadata)
                                             .embed_thumbnail(embed_thumbnail);
 
                                         if audio_only {
-                                            builder = builder.format_str("mp3")?;
+                                            builder = builder.format_str(&audio_format)?;
                                         } else {
                                             builder = builder.format_str(&format)?;
                                         }

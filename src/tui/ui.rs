@@ -6,7 +6,17 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Frame;
 
+const MIN_WIDTH: u16 = 60;
+const MIN_HEIGHT: u16 = 20;
+
 pub fn draw(f: &mut Frame, app: &AppState) {
+    let area = f.area();
+
+    if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
+        draw_too_small(f, area);
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -15,7 +25,7 @@ pub fn draw(f: &mut Frame, app: &AppState) {
             Constraint::Length(3),
             Constraint::Length(1),
         ])
-        .split(f.area());
+        .split(area);
 
     draw_header(f, chunks[0], app);
     draw_main_content(f, chunks[1], app);
@@ -35,31 +45,88 @@ pub fn draw(f: &mut Frame, app: &AppState) {
     }
 }
 
+fn draw_too_small(f: &mut Frame, area: Rect) {
+    let text = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            " SourisDW",
+            Style::default()
+                .fg(OPENCODE_THEME.title)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            " Terminal too small",
+            Style::default()
+                .fg(OPENCODE_THEME.error)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(vec![Span::styled(
+            format!(
+                " Need at least {}x{} (current: {}x{})",
+                MIN_WIDTH, MIN_HEIGHT, area.width, area.height
+            ),
+            Style::default().fg(OPENCODE_THEME.subtitle),
+        )]),
+    ];
+    let block = Paragraph::new(text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(OPENCODE_THEME.border))
+            .style(Style::default().bg(OPENCODE_THEME.background)),
+    );
+    f.render_widget(block, area);
+}
+
 fn draw_header(f: &mut Frame, area: Rect, app: &AppState) {
     let active = app.get_active_count();
     let completed = app.get_completed_count();
     let errors = app.get_error_count();
 
-    let status_text = if active > 0 {
-        format!(
-            " | {} downloading | {} completed | {} errors",
-            active, completed, errors
-        )
-    } else {
-        String::new()
-    };
-
-    let header = Paragraph::new(vec![Line::from(vec![
+    let mut spans = vec![
         Span::styled(
             " SourisDW",
             Style::default()
                 .fg(OPENCODE_THEME.title)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" v0.1.0", Style::default().fg(OPENCODE_THEME.subtitle)),
-        Span::styled(&status_text, Style::default().fg(OPENCODE_THEME.accent)),
-    ])])
-    .block(
+        Span::styled(" v0.1.0 ", Style::default().fg(OPENCODE_THEME.subtitle)),
+    ];
+
+    if active > 0 || completed > 0 || errors > 0 {
+        spans.push(Span::styled(
+            " -- ",
+            Style::default().fg(OPENCODE_THEME.border),
+        ));
+        if active > 0 {
+            spans.push(Span::styled(
+                format!("{} downloading", active),
+                Style::default().fg(OPENCODE_THEME.info),
+            ));
+            spans.push(Span::styled(
+                " | ",
+                Style::default().fg(OPENCODE_THEME.border),
+            ));
+        }
+        if completed > 0 {
+            spans.push(Span::styled(
+                format!("{} completed", completed),
+                Style::default().fg(OPENCODE_THEME.success),
+            ));
+            spans.push(Span::styled(
+                " | ",
+                Style::default().fg(OPENCODE_THEME.border),
+            ));
+        }
+        if errors > 0 {
+            spans.push(Span::styled(
+                format!("{} errors", errors),
+                Style::default().fg(OPENCODE_THEME.error),
+            ));
+        }
+    }
+
+    let header = Paragraph::new(vec![Line::from(spans)]).block(
         Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(OPENCODE_THEME.border))
@@ -96,11 +163,11 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
         let is_selected = i == app.selected_index;
 
         let (status_icon, status_color) = match &dl.status {
-            DownloadStatus::Queued => ("[ ]", OPENCODE_THEME.accent),
-            DownloadStatus::Downloading => ("[>]", OPENCODE_THEME.info),
-            DownloadStatus::PostProcessing => ("[*]", OPENCODE_THEME.warning),
-            DownloadStatus::Complete => ("[x]", OPENCODE_THEME.success),
-            DownloadStatus::Error(_) => ("[!]", OPENCODE_THEME.error),
+            DownloadStatus::Queued => ("\u{25cb}", OPENCODE_THEME.subtitle),
+            DownloadStatus::Downloading => ("\u{25cf}", OPENCODE_THEME.info),
+            DownloadStatus::PostProcessing => ("\u{25d0}", OPENCODE_THEME.warning),
+            DownloadStatus::Complete => ("\u{2713}", OPENCODE_THEME.success),
+            DownloadStatus::Error(_) => ("\u{2717}", OPENCODE_THEME.error),
         };
 
         let title_style = if is_selected {
@@ -113,23 +180,38 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
 
         let title_line = Line::from(vec![
             Span::styled(
-                format!("{} ", status_icon),
+                format!(" {} ", status_icon),
                 Style::default().fg(status_color),
             ),
-            Span::styled(format!("[{}] {}", i + 1, dl.title), title_style),
+            Span::styled(format!("{} ", dl.title), title_style),
+            Span::styled(
+                format!("[{}]", dl.format),
+                Style::default().fg(OPENCODE_THEME.subtitle),
+            ),
         ]);
 
-        let progress_width = 30;
+        let progress_width = 25;
         let bar = progress_bar(dl.progress, progress_width);
-        let progress_line = Line::from(vec![Span::styled(
-            format!("  {} {:.1}%  {}", bar, dl.progress, dl.speed),
-            Style::default().fg(OPENCODE_THEME.progress),
-        )]);
-
-        let info_line = Line::from(vec![Span::styled(
-            format!("  {} | {} | ETA: {}", dl.platform, dl.format, dl.eta),
-            Style::default().fg(OPENCODE_THEME.subtitle),
-        )]);
+        let progress_line = Line::from(vec![
+            Span::styled(
+                format!("   {} ", bar),
+                Style::default().fg(OPENCODE_THEME.progress),
+            ),
+            Span::styled(
+                format!("{:.0}%", dl.progress),
+                Style::default()
+                    .fg(OPENCODE_THEME.foreground)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("  {} ", dl.speed),
+                Style::default().fg(OPENCODE_THEME.subtitle),
+            ),
+            Span::styled(
+                format!("ETA {}", dl.eta),
+                Style::default().fg(OPENCODE_THEME.subtitle),
+            ),
+        ]);
 
         let bg_color = if is_selected {
             Color::Rgb(40, 40, 48)
@@ -138,14 +220,13 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
         };
 
         items.push(
-            ListItem::new(vec![title_line, progress_line, info_line])
-                .style(Style::default().bg(bg_color)),
+            ListItem::new(vec![title_line, progress_line]).style(Style::default().bg(bg_color)),
         );
     }
 
     if items.is_empty() {
         items.push(ListItem::new(Line::from(vec![Span::styled(
-            "  No downloads. Press 'a' to add a URL.",
+            "  No downloads yet",
             Style::default().fg(OPENCODE_THEME.subtitle),
         )])));
     }
@@ -171,10 +252,22 @@ fn draw_queue(f: &mut Frame, area: Rect, app: &AppState) {
 
     for (i, dl) in app.downloads.iter().enumerate() {
         if matches!(dl.status, DownloadStatus::Queued) {
-            items.push(ListItem::new(Line::from(vec![Span::styled(
-                format!("  {}. {} ({})", i + 1, dl.title, dl.platform),
-                Style::default().fg(OPENCODE_THEME.foreground),
-            )])));
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!(" {} ", i + 1),
+                    Style::default()
+                        .fg(OPENCODE_THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    dl.title.clone(),
+                    Style::default().fg(OPENCODE_THEME.foreground),
+                ),
+                Span::styled(
+                    format!(" ({})", dl.platform),
+                    Style::default().fg(OPENCODE_THEME.subtitle),
+                ),
+            ])));
         }
     }
 
@@ -204,7 +297,7 @@ fn draw_queue(f: &mut Frame, area: Rect, app: &AppState) {
 fn draw_details_panel(f: &mut Frame, area: Rect, app: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(8), Constraint::Min(5)])
+        .constraints([Constraint::Min(8), Constraint::Min(5)])
         .split(area);
 
     draw_selected_details(f, chunks[0], app);
@@ -213,47 +306,62 @@ fn draw_details_panel(f: &mut Frame, area: Rect, app: &AppState) {
 
 fn draw_selected_details(f: &mut Frame, area: Rect, app: &AppState) {
     let details = if let Some(dl) = app.downloads.get(app.selected_index) {
-        let status_text = match &dl.status {
-            DownloadStatus::Queued => "Queued".to_string(),
-            DownloadStatus::Downloading => "Downloading".to_string(),
-            DownloadStatus::PostProcessing => "Post-processing".to_string(),
-            DownloadStatus::Complete => "Complete".to_string(),
-            DownloadStatus::Error(e) => format!("Error: {}", e),
+        let (status_text, status_color) = match &dl.status {
+            DownloadStatus::Queued => ("Queued", OPENCODE_THEME.subtitle),
+            DownloadStatus::Downloading => ("Downloading", OPENCODE_THEME.info),
+            DownloadStatus::PostProcessing => ("Processing", OPENCODE_THEME.warning),
+            DownloadStatus::Complete => ("Complete", OPENCODE_THEME.success),
+            DownloadStatus::Error(e) => (e.as_str(), OPENCODE_THEME.error),
         };
 
-        vec![
+        let mut lines = vec![
             Line::from(vec![
-                Span::styled(" Title: ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled("  Title    ", Style::default().fg(OPENCODE_THEME.accent)),
                 Span::styled(&dl.title, Style::default().fg(OPENCODE_THEME.foreground)),
             ]),
             Line::from(vec![
-                Span::styled(" Platform: ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled("  Platform ", Style::default().fg(OPENCODE_THEME.accent)),
                 Span::styled(&dl.platform, Style::default().fg(OPENCODE_THEME.foreground)),
             ]),
             Line::from(vec![
-                Span::styled(" Status: ", Style::default().fg(OPENCODE_THEME.accent)),
-                Span::styled(status_text, Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("  Status   ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled(status_text, Style::default().fg(status_color)),
             ]),
             Line::from(vec![
-                Span::styled(" Format: ", Style::default().fg(OPENCODE_THEME.accent)),
-                Span::styled(&dl.format, Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("  Format   ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled(
+                    format!("{} / {}", dl.format, dl.quality),
+                    Style::default().fg(OPENCODE_THEME.foreground),
+                ),
             ]),
-            Line::from(vec![
-                Span::styled(" Quality: ", Style::default().fg(OPENCODE_THEME.accent)),
-                Span::styled(&dl.quality, Style::default().fg(OPENCODE_THEME.foreground)),
-            ]),
-            Line::from(vec![
-                Span::styled(" Speed: ", Style::default().fg(OPENCODE_THEME.accent)),
+        ];
+
+        if !dl.speed.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("  Speed    ", Style::default().fg(OPENCODE_THEME.accent)),
                 Span::styled(&dl.speed, Style::default().fg(OPENCODE_THEME.foreground)),
-            ]),
-            Line::from(vec![
-                Span::styled(" ETA: ", Style::default().fg(OPENCODE_THEME.accent)),
+            ]));
+        }
+        if !dl.eta.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("  ETA      ", Style::default().fg(OPENCODE_THEME.accent)),
                 Span::styled(&dl.eta, Style::default().fg(OPENCODE_THEME.foreground)),
-            ]),
-        ]
+            ]));
+        }
+        if let Some(ref path) = dl.path {
+            lines.push(Line::from(vec![
+                Span::styled("  Path     ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled(
+                    path.as_str(),
+                    Style::default().fg(OPENCODE_THEME.foreground),
+                ),
+            ]));
+        }
+
+        lines
     } else {
         vec![Line::from(vec![Span::styled(
-            "  Select a download to see details",
+            "  No download selected",
             Style::default().fg(OPENCODE_THEME.subtitle),
         )])]
     };
@@ -278,31 +386,43 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
     let (title, content) = match app.input_mode {
         InputMode::Normal => (
             " Input ",
-            Line::from(vec![Span::styled(
-                "  Press 'a' to add URL, '/' to search",
-                Style::default().fg(OPENCODE_THEME.subtitle),
-            )]),
+            Line::from(vec![
+                Span::styled(
+                    " a",
+                    Style::default()
+                        .fg(OPENCODE_THEME.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" add URL  ", Style::default().fg(OPENCODE_THEME.subtitle)),
+                Span::styled(
+                    "Ctrl+F",
+                    Style::default()
+                        .fg(OPENCODE_THEME.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" search", Style::default().fg(OPENCODE_THEME.subtitle)),
+            ]),
         ),
         InputMode::Input => (
             " Enter URL ",
             Line::from(vec![
-                Span::styled("  > ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled(" > ", Style::default().fg(OPENCODE_THEME.accent)),
                 Span::styled(
                     &app.input_buffer,
                     Style::default().fg(OPENCODE_THEME.foreground),
                 ),
-                Span::styled("█", Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("\u{2588}", Style::default().fg(OPENCODE_THEME.foreground)),
             ]),
         ),
         InputMode::Search => (
             " Search ",
             Line::from(vec![
-                Span::styled("  > ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled(" > ", Style::default().fg(OPENCODE_THEME.accent)),
                 Span::styled(
                     &app.input_buffer,
                     Style::default().fg(OPENCODE_THEME.foreground),
                 ),
-                Span::styled("█", Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("\u{2588}", Style::default().fg(OPENCODE_THEME.foreground)),
             ]),
         ),
     };
@@ -325,23 +445,23 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &AppState) {
     let shortcuts = if app.waiting_for_quit {
-        " [Esc/q] Quit  [any key] Cancel "
+        " Esc/q: Quit   any key: Cancel "
     } else if app.show_help {
-        " [Esc/q] Back "
+        " Esc/q: Back "
     } else if app.show_settings {
-        " [j/k] Navigate  [Enter] Change  [Esc/q] Back "
+        " j/k: Navigate   Enter: Change   Esc/q: Back "
     } else if app.show_search {
         match app.input_mode {
-            InputMode::Search => " [Enter] Search  [j/k] Navigate  [Esc/q] Back ",
-            _ => " [Esc/q] Back ",
+            InputMode::Search => " Enter: Search   j/k: Navigate   Esc/q: Back ",
+            _ => " Esc/q: Back ",
         }
     } else {
         match app.input_mode {
             InputMode::Normal => {
-                " [a] Add URL  [/] Search  [y] Copy URL  [h] Help  [s] Settings  [q/Esc] Back "
+                " a: Add URL   Ctrl+F: Search   y: Copy   h: Help   s: Settings   q/Esc: Back "
             }
-            InputMode::Input => " [Enter] Confirm  [Esc/q] Back ",
-            InputMode::Search => " [Enter] Search  [Esc/q] Back ",
+            InputMode::Input => " Enter: Confirm   Esc/q: Back ",
+            InputMode::Search => " Enter: Search   Esc/q: Back ",
         }
     };
 
@@ -361,12 +481,23 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &AppState) {
 
 fn draw_status_bar(f: &mut Frame, area: Rect, app: &AppState) {
     let status = app.status_message.as_deref().unwrap_or("Ready");
+    let has_errors = app.get_error_count() > 0;
+    let has_active = app.get_active_count() > 0;
+
+    let bg = if has_errors {
+        OPENCODE_THEME.error
+    } else if has_active {
+        OPENCODE_THEME.info
+    } else {
+        OPENCODE_THEME.accent
+    };
 
     let status_bar = Paragraph::new(Line::from(vec![Span::styled(
         format!(" {} ", status),
         Style::default()
-            .fg(OPENCODE_THEME.foreground)
-            .bg(OPENCODE_THEME.accent),
+            .fg(OPENCODE_THEME.background)
+            .bg(bg)
+            .add_modifier(Modifier::BOLD),
     )]));
 
     f.render_widget(status_bar, area);
@@ -387,33 +518,109 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
         Line::from(""),
         Line::from(vec![Span::styled(
             " Navigation",
-            Style::default().fg(OPENCODE_THEME.info),
+            Style::default()
+                .fg(OPENCODE_THEME.info)
+                .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  j/Down    Move down"),
-        Line::from("  k/Up      Move up"),
-        Line::from("  g/Home    Go to first"),
-        Line::from("  G/End     Go to last"),
+        Line::from(vec![
+            Span::styled("  j / Down", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "     Move down",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  k / Up", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "       Move up",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  g / Home", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "   Go to first",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  G / End", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "    Go to last",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
         Line::from(""),
         Line::from(vec![Span::styled(
             " Actions",
-            Style::default().fg(OPENCODE_THEME.info),
+            Style::default()
+                .fg(OPENCODE_THEME.info)
+                .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  a         Add URL"),
-        Line::from("  /         Search"),
-        Line::from("  Enter     Download selected"),
-        Line::from("  y         Copy URL to clipboard"),
-        Line::from("  d         Delete selected"),
-        Line::from("  p         Pause/Resume"),
-        Line::from("  c         Cancel"),
+        Line::from(vec![
+            Span::styled("  a", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "         Add URL",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+F", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "     Search",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  Enter", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "     Download selected",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  y", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "         Copy URL",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  d / Del", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("   Delete", Style::default().fg(OPENCODE_THEME.foreground)),
+        ]),
         Line::from(""),
         Line::from(vec![Span::styled(
             " Views",
-            Style::default().fg(OPENCODE_THEME.info),
+            Style::default()
+                .fg(OPENCODE_THEME.info)
+                .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  s         Settings"),
-        Line::from("  h/?       Help"),
-        Line::from("  q/Esc     Back / Quit"),
-        Line::from("  Ctrl+c    Force quit"),
+        Line::from(vec![
+            Span::styled("  s", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "         Settings",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  h / ?", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("     Help", Style::default().fg(OPENCODE_THEME.foreground)),
+        ]),
+        Line::from(vec![
+            Span::styled("  q / Esc", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "   Back / Quit",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+C", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled(
+                "    Force quit",
+                Style::default().fg(OPENCODE_THEME.foreground),
+            ),
+        ]),
     ];
 
     let help_block = Paragraph::new(help_text)
@@ -435,36 +642,55 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
 }
 
 fn draw_settings_overlay(f: &mut Frame, app: &AppState) {
-    let area = centered_rect(50, 60, f.area());
+    let area = centered_rect(50, 70, f.area());
 
     f.render_widget(Clear, area);
 
-    let mut items: Vec<ListItem> = Vec::new();
+    let visible_height = area.height.saturating_sub(2) as usize;
 
-    for (i, option) in SETTINGS_OPTIONS.iter().enumerate() {
-        let is_selected = i == app.settings_index;
-        let value = app.get_setting_value(i);
+    let all_items: Vec<ListItem> = SETTINGS_OPTIONS
+        .iter()
+        .enumerate()
+        .map(|(i, option)| {
+            let is_selected = i == app.settings_index;
+            let value = app.get_setting_value(i);
 
-        let style = if is_selected {
-            Style::default()
-                .fg(OPENCODE_THEME.highlight)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(OPENCODE_THEME.foreground)
-        };
+            let (option_style, value_style) = if is_selected {
+                (
+                    Style::default()
+                        .fg(OPENCODE_THEME.highlight)
+                        .add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(OPENCODE_THEME.info)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                (
+                    Style::default().fg(OPENCODE_THEME.foreground),
+                    Style::default().fg(OPENCODE_THEME.subtitle),
+                )
+            };
 
-        items.push(ListItem::new(Line::from(vec![
-            Span::styled(format!("  {} ", option), style),
-            Span::styled(
-                format!("[{}]", value),
-                Style::default().fg(OPENCODE_THEME.info),
-            ),
-        ])));
-    }
+            let prefix = if is_selected { " > " } else { "   " };
 
-    let settings_block = List::new(items).block(
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("{}{} ", prefix, option), option_style),
+                Span::styled(format!("[{}]", value), value_style),
+            ]))
+        })
+        .collect();
+
+    let start = app.settings_scroll_offset.min(all_items.len());
+    let end = (start + visible_height).min(all_items.len());
+    let visible_items = &all_items[start..end];
+
+    let settings_block = List::new(visible_items.to_vec()).block(
         Block::default()
-            .title(" Settings ")
+            .title(format!(
+                " Settings {}/{} ",
+                app.settings_index + 1,
+                SETTINGS_OPTIONS.len()
+            ))
             .title_style(
                 Style::default()
                     .fg(OPENCODE_THEME.title)
@@ -485,35 +711,50 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
 
     let mut items: Vec<ListItem> = Vec::new();
 
-    items.push(ListItem::new(Line::from(vec![Span::styled(
-        format!("  Query: {}", app.input_buffer),
-        Style::default().fg(OPENCODE_THEME.info),
-    )])));
+    items.push(ListItem::new(Line::from(vec![
+        Span::styled(
+            " Query: ",
+            Style::default()
+                .fg(OPENCODE_THEME.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            &app.input_buffer,
+            Style::default()
+                .fg(OPENCODE_THEME.foreground)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2588}", Style::default().fg(OPENCODE_THEME.foreground)),
+    ])));
 
     items.push(ListItem::new(Line::from("")));
 
     if app.search_results.is_empty() {
         items.push(ListItem::new(Line::from(vec![Span::styled(
-            "  No results. Type and press Enter to search.",
+            "  Type and press Enter to search",
             Style::default().fg(OPENCODE_THEME.subtitle),
         )])));
     } else {
         for (i, result) in app.search_results.iter().enumerate() {
             let is_selected = i == app.search_index;
-            let style = if is_selected {
-                Style::default()
-                    .fg(OPENCODE_THEME.highlight)
-                    .add_modifier(Modifier::BOLD)
+            let (style, prefix) = if is_selected {
+                (
+                    Style::default()
+                        .fg(OPENCODE_THEME.highlight)
+                        .add_modifier(Modifier::BOLD),
+                    " > ",
+                )
             } else {
-                Style::default().fg(OPENCODE_THEME.foreground)
+                (Style::default().fg(OPENCODE_THEME.foreground), "   ")
             };
 
             let duration_str = result.duration.map(format_duration).unwrap_or_default();
 
             items.push(ListItem::new(Line::from(vec![
-                Span::styled(format!("  {}. {} ", i + 1, result.title), style),
+                Span::styled(format!("{}{}. ", prefix, i + 1), style),
+                Span::styled(result.title.clone(), style),
                 Span::styled(
-                    format!("[{}] [{}]", result.platform, duration_str),
+                    format!(" [{}]", duration_str),
                     Style::default().fg(OPENCODE_THEME.subtitle),
                 ),
             ])));
@@ -522,7 +763,7 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
 
     let search_block = List::new(items).block(
         Block::default()
-            .title(" Search Results ")
+            .title(format!(" Search ({} results) ", app.search_results.len()))
             .title_style(
                 Style::default()
                     .fg(OPENCODE_THEME.title)

@@ -179,6 +179,7 @@ impl Resolver {
                             embed_thumbnail,
                             embed_subtitles,
                             4,
+                            ffmpeg_path,
                         )
                         .await?;
 

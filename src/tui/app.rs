@@ -14,6 +14,7 @@ pub struct AppState {
     pub config: AppConfigState,
     pub waiting_for_quit: bool,
     pub settings_index: usize,
+    pub settings_scroll_offset: usize,
     pub search_index: usize,
 }
 
@@ -64,6 +65,7 @@ pub struct AppConfigState {
     pub embed_thumbnail: bool,
     pub auto_update: bool,
     pub audio_only: bool,
+    pub audio_format: String,
 }
 
 pub const SETTINGS_OPTIONS: &[&str] = &[
@@ -74,6 +76,7 @@ pub const SETTINGS_OPTIONS: &[&str] = &[
     "Embed Metadata",
     "Embed Thumbnail",
     "Audio Only",
+    "Audio Format",
     "Auto Update",
 ];
 
@@ -98,6 +101,7 @@ impl AppState {
             config: AppConfigState::default(),
             waiting_for_quit: false,
             settings_index: 0,
+            settings_scroll_offset: 0,
             search_index: 0,
         }
     }
@@ -111,7 +115,7 @@ impl AppState {
             "video".to_string()
         };
         let format = if audio_only {
-            "mp3".to_string()
+            self.config.audio_format.clone()
         } else {
             self.config.default_format.clone()
         };
@@ -322,7 +326,8 @@ impl AppState {
             4 => self.config.embed_metadata.to_string(),
             5 => self.config.embed_thumbnail.to_string(),
             6 => self.config.audio_only.to_string(),
-            7 => self.config.auto_update.to_string(),
+            7 => self.config.audio_format.clone(),
+            8 => self.config.auto_update.to_string(),
             _ => String::new(),
         }
     }
@@ -356,8 +361,27 @@ impl AppState {
             4 => self.config.embed_metadata = !self.config.embed_metadata,
             5 => self.config.embed_thumbnail = !self.config.embed_thumbnail,
             6 => self.config.audio_only = !self.config.audio_only,
-            7 => self.config.auto_update = !self.config.auto_update,
+            7 => {
+                let formats = ["mp3", "flac", "ogg", "aac", "wav"];
+                let current = formats
+                    .iter()
+                    .position(|&f| f == self.config.audio_format)
+                    .unwrap_or(0);
+                self.config.audio_format = formats[(current + 1) % formats.len()].to_string();
+            }
+            8 => self.config.auto_update = !self.config.auto_update,
             _ => {}
+        }
+    }
+
+    pub fn update_settings_scroll(&mut self, visible_height: usize) {
+        if visible_height == 0 {
+            return;
+        }
+        if self.settings_index < self.settings_scroll_offset {
+            self.settings_scroll_offset = self.settings_index;
+        } else if self.settings_index >= self.settings_scroll_offset + visible_height {
+            self.settings_scroll_offset = self.settings_index - visible_height + 1;
         }
     }
 }
@@ -373,6 +397,7 @@ impl Default for AppConfigState {
             embed_thumbnail: true,
             auto_update: true,
             audio_only: false,
+            audio_format: "mp3".to_string(),
         }
     }
 }

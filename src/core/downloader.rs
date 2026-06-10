@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 pub struct SourisDWBuilder {
     auto_update: bool,
+    yt_dlp_channel: String,
     format: Option<Format>,
     quality: Option<Quality>,
     output: Option<PathBuf>,
@@ -33,6 +34,7 @@ impl SourisDWBuilder {
     pub fn new() -> Self {
         Self {
             auto_update: true,
+            yt_dlp_channel: "stable".to_string(),
             format: None,
             quality: None,
             output: None,
@@ -50,6 +52,11 @@ impl SourisDWBuilder {
 
     pub fn auto_update(mut self, enabled: bool) -> Self {
         self.auto_update = enabled;
+        self
+    }
+
+    pub fn yt_dlp_channel(mut self, channel: impl Into<String>) -> Self {
+        self.yt_dlp_channel = channel.into();
         self
     }
 
@@ -120,7 +127,7 @@ impl SourisDWBuilder {
     }
 
     pub async fn build(self) -> Result<SourisDW> {
-        let deps = DepManager::new(self.auto_update).await?;
+        let deps = DepManager::new(self.auto_update, &self.yt_dlp_channel).await?;
 
         let resolver = Resolver::new(
             self.spotify_client_id.clone(),

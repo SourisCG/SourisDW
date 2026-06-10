@@ -2,7 +2,7 @@ use crate::deps::yt_dlp::YtDlp;
 use crate::error::Result;
 
 pub async fn download_subtitles(url: &str, output_dir: &str) -> Result<()> {
-    let yt_dlp = YtDlp::ensure_installed().await?;
+    let yt_dlp = YtDlp::ensure_installed("stable").await?;
 
     let status = tokio::process::Command::new(yt_dlp.binary_path())
         .args([

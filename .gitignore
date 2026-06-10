@@ -17,3 +17,7 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# User files
+downloads/
+.opencode/

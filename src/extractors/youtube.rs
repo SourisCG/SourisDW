@@ -10,7 +10,7 @@ pub struct YouTubeExtractor {
 
 impl YouTubeExtractor {
     pub async fn new() -> Result<Self> {
-        let yt_dlp = YtDlp::ensure_installed().await?;
+        let yt_dlp = YtDlp::ensure_installed("stable").await?;
         Ok(Self { yt_dlp })
     }
 
@@ -260,6 +260,7 @@ impl YouTubeExtractor {
         embed_thumbnail: bool,
         embed_subtitles: bool,
         parallel: usize,
+        ffmpeg_path: Option<&std::path::Path>,
     ) -> Result<Vec<DownloadResult>> {
         let items = self.extract_playlist_info(url).await?;
         let mut results = Vec::new();
@@ -274,6 +275,7 @@ impl YouTubeExtractor {
             let format = format.cloned();
             let quality = quality.cloned();
             let output_dir = output_dir.to_string();
+            let ffmpeg = ffmpeg_path.map(|p| p.to_path_buf());
 
             handles.push(tokio::spawn(async move {
                 let result = Self::download_single(
@@ -285,6 +287,7 @@ impl YouTubeExtractor {
                     embed_metadata,
                     embed_thumbnail,
                     embed_subtitles,
+                    ffmpeg.as_deref(),
                 )
                 .await;
                 drop(permit);
@@ -318,11 +321,17 @@ impl YouTubeExtractor {
         embed_metadata: bool,
         embed_thumbnail: bool,
         embed_subtitles: bool,
+        ffmpeg_path: Option<&std::path::Path>,
     ) -> Result<DownloadResult> {
         let mut cmd = tokio::process::Command::new(yt_dlp_path);
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
+
+        if let Some(ffmpeg) = ffmpeg_path {
+            cmd.arg("--ffmpeg-location");
+            cmd.arg(ffmpeg);
+        }
 
         if let Some(f) = format {
             let format_str = match f {
