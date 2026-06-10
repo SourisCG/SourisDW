@@ -5,6 +5,7 @@ pub mod postprocess;
 pub mod utils;
 pub mod config;
 pub mod error;
+pub mod tui;
 
 pub use core::downloader::SourisDW;
 pub use core::downloader::SourisDWBuilder;

@@ -413,6 +413,66 @@ async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
 }
 
 async fn handle_tui() -> Result<()> {
-    println!("TUI mode coming soon!");
+    use crossterm::{
+        event::{DisableMouseCapture, EnableMouseCapture},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    };
+    use ratatui::prelude::*;
+    use souris_dw::tui::{app::AppState, events, ui};
+
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut app = AppState::new();
+    let tick_rate = std::time::Duration::from_millis(100);
+
+    loop {
+        terminal.draw(|f| ui::draw(f, &app))?;
+
+        match events::poll_event(tick_rate)? {
+            Some(events::AppEvent::Key(key)) => {
+                if let Some(action) = events::handle_key_event(key) {
+                    match action {
+                        events::Action::Quit => break,
+                        events::Action::AddUrl => app.start_input(),
+                        events::Action::Search => app.toggle_search(),
+                        events::Action::Help => app.toggle_help(),
+                        events::Action::Settings => app.toggle_settings(),
+                        events::Action::MoveDown => app.move_selection_down(),
+                        events::Action::MoveUp => app.move_selection_up(),
+                        events::Action::MoveFirst => app.selected_index = 0,
+                        events::Action::MoveLast => {
+                            app.selected_index = app.downloads.len().saturating_sub(1)
+                        }
+                        events::Action::Confirm => {
+                            if !app.input_buffer.is_empty() {
+                                let url = app.input_buffer.clone();
+                                app.add_download(url.clone(), url.clone(), "Unknown".to_string());
+                                app.cancel_input();
+                            }
+                        }
+                        events::Action::Cancel => app.cancel_input(),
+                        _ => {}
+                    }
+                }
+            }
+            Some(events::AppEvent::Tick) => {}
+            Some(events::AppEvent::Quit) => break,
+            None => {}
+        }
+    }
+
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
     Ok(())
 }
