@@ -508,8 +508,41 @@ async fn handle_tui() -> Result<()> {
     let mut app = AppState::new();
     let tick_rate = std::time::Duration::from_millis(100);
 
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<DownloadEvent>();
+    let mut rx = rx;
+
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
+
+        while let Ok(event) = rx.try_recv() {
+            match event {
+                DownloadEvent::Started { id } => {
+                    if let Some(dl) = app.downloads.get_mut(id) {
+                        dl.status = souris_dw::tui::app::DownloadStatus::Downloading;
+                    }
+                }
+                DownloadEvent::Completed {
+                    id,
+                    success,
+                    path,
+                    error,
+                } => {
+                    if let Some(dl) = app.downloads.get_mut(id) {
+                        if success {
+                            dl.status = souris_dw::tui::app::DownloadStatus::Complete;
+                            dl.progress = 100.0;
+                            dl.path = Some(path);
+                            app.status_message = Some(format!("Download {} completed", id + 1));
+                        } else {
+                            dl.status = souris_dw::tui::app::DownloadStatus::Error(
+                                error.unwrap_or_else(|| "Unknown error".into()),
+                            );
+                            app.status_message = Some(format!("Download {} failed", id + 1));
+                        }
+                    }
+                }
+            }
+        }
 
         match events::poll_event(tick_rate)? {
             Some(events::AppEvent::Key(key)) => {
@@ -611,12 +644,15 @@ async fn handle_tui() -> Result<()> {
                                 let output = app.config.output_dir.display().to_string();
                                 let embed_metadata = app.config.embed_metadata;
                                 let embed_thumbnail = app.config.embed_thumbnail;
+                                let download_id = app.downloads.len();
 
                                 app.add_download(url.clone(), url.clone(), "Unknown".into());
                                 app.cancel_input();
                                 app.status_message = Some("Starting download...".into());
 
+                                let tx = tx.clone();
                                 tokio::spawn(async move {
+                                    let _ = tx.send(DownloadEvent::Started { id: download_id });
                                     let result = async {
                                         let mut builder = souris_dw::SourisDW::builder()
                                             .auto_update(true)
@@ -645,14 +681,20 @@ async fn handle_tui() -> Result<()> {
 
                                     match result {
                                         Ok(r) => {
-                                            if r.success {
-                                                tracing::info!("Download complete: {:?}", r.path);
-                                            } else {
-                                                tracing::error!("Download failed: {:?}", r.error);
-                                            }
+                                            let _ = tx.send(DownloadEvent::Completed {
+                                                id: download_id,
+                                                success: r.success,
+                                                path: r.path.unwrap_or_default(),
+                                                error: r.error,
+                                            });
                                         }
                                         Err(e) => {
-                                            tracing::error!("Download error: {}", e);
+                                            let _ = tx.send(DownloadEvent::Completed {
+                                                id: download_id,
+                                                success: false,
+                                                path: String::new(),
+                                                error: Some(e.to_string()),
+                                            });
                                         }
                                     }
                                 });
@@ -697,4 +739,16 @@ async fn handle_tui() -> Result<()> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+enum DownloadEvent {
+    Started {
+        id: usize,
+    },
+    Completed {
+        id: usize,
+        success: bool,
+        path: String,
+        error: Option<String>,
+    },
 }

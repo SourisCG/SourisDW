@@ -88,9 +88,39 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
 
+  build-fedora:
+    name: Build (Fedora x86_64)
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf install -y gcc
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Rename artifact
+        run: |
+          cp target/x86_64-unknown-linux-gnu/release/souris-dw souris-dw-linux-x86_64-fedora
+          chmod +x souris-dw-linux-x86_64-fedora
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: souris-dw-linux-x86_64-fedora
+          path: souris-dw-linux-x86_64-fedora
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, build-fedora]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -118,6 +148,7 @@ jobs:
           files: |
             artifacts/souris-dw-linux-x86_64/souris-dw-linux-x86_64
             artifacts/souris-dw-linux-x86_64-musl/souris-dw-linux-x86_64-musl
+            artifacts/souris-dw-linux-x86_64-fedora/souris-dw-linux-x86_64-fedora
             artifacts/souris-dw-linux-aarch64/souris-dw-linux-aarch64
             artifacts/souris-dw-macos-x86_64/souris-dw-macos-x86_64
             artifacts/souris-dw-macos-aarch64/souris-dw-macos-aarch64

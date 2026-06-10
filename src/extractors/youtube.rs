@@ -127,11 +127,17 @@ impl YouTubeExtractor {
         embed_thumbnail: bool,
         embed_subtitles: bool,
         media_type: Option<&MediaTypeHint>,
+        ffmpeg_path: Option<&std::path::Path>,
     ) -> Result<DownloadResult> {
         let mut cmd = tokio::process::Command::new(self.yt_dlp.binary_path());
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
+
+        if let Some(ffmpeg) = ffmpeg_path {
+            cmd.arg("--ffmpeg-location");
+            cmd.arg(ffmpeg);
+        }
 
         let is_audio = matches!(media_type, Some(MediaTypeHint::Audio));
 

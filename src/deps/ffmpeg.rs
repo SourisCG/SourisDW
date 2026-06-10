@@ -3,6 +3,8 @@ use crate::error::{Result, SourisError};
 use crate::utils::fs;
 use std::path::{Path, PathBuf};
 
+const FFMPEG_EMBEDDED: &[u8] = include_bytes!(env!("FFMPEG_PATH"));
+
 pub struct FFmpeg {
     binary_path: PathBuf,
     version: Option<String>,
@@ -35,6 +37,15 @@ impl FFmpeg {
             });
         }
 
+        if !FFMPEG_EMBEDDED.is_empty() {
+            Self::extract_embedded(&bin_dir, &binary_path)?;
+            let version = Self::get_version(&binary_path).await.ok();
+            return Ok(Self {
+                binary_path,
+                version,
+            });
+        }
+
         if let Some(system_ffmpeg) = fs::which("ffmpeg") {
             let version = Self::get_version(&system_ffmpeg).await.ok();
             return Ok(Self {
@@ -46,6 +57,13 @@ impl FFmpeg {
         Err(SourisError::DependencyNotFound {
             name: "ffmpeg".into(),
         })
+    }
+
+    fn extract_embedded(bin_dir: &Path, binary_path: &Path) -> Result<()> {
+        fs::ensure_dir(bin_dir)?;
+        fs_err::write(binary_path, FFMPEG_EMBEDDED).map_err(|e| SourisError::io(binary_path, e))?;
+        fs::set_executable(binary_path)?;
+        Ok(())
     }
 
     async fn get_version(binary_path: &Path) -> Result<String> {

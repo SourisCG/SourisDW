@@ -160,6 +160,7 @@ impl Resolver {
         embed_thumbnail: bool,
         embed_subtitles: bool,
         media_type: Option<&MediaTypeHint>,
+        ffmpeg_path: Option<&std::path::Path>,
     ) -> Result<DownloadResult> {
         let platform = self.detect_platform(url);
         let resource_type = self.detect_resource_type(url);
@@ -205,6 +206,7 @@ impl Resolver {
                             embed_thumbnail,
                             embed_subtitles,
                             media_type,
+                            ffmpeg_path,
                         )
                         .await
                 }
@@ -232,6 +234,7 @@ impl Resolver {
                                     embed_thumbnail,
                                     embed_subtitles,
                                     media_type,
+                                    ffmpeg_path,
                                 )
                                 .await?;
 
@@ -266,6 +269,7 @@ impl Resolver {
                                         embed_thumbnail,
                                         embed_subtitles,
                                         media_type,
+                                        ffmpeg_path,
                                     )
                                     .await;
 
@@ -311,6 +315,7 @@ impl Resolver {
                         embed_thumbnail,
                         embed_subtitles,
                         media_type,
+                        ffmpeg_path,
                     )
                     .await
             }
