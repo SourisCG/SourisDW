@@ -1,0 +1,92 @@
+[package]
+name = "souris-dw"
+version = "0.1.0"
+edition = "2021"
+description = "Cross-platform music & video downloader for YouTube and Spotify"
+license = "MIT"
+authors = ["SourisDW"]
+readme = "README.md"
+repository = "https://github.com/souris/souris-dw"
+keywords = ["youtube", "spotify", "downloader", "music", "video"]
+categories = ["command-line-utilities", "multimedia"]
+
+[features]
+default = []
+ffmpeg-native = ["dep:ffmpeg-next"]
+
+[[bin]]
+name = "souris-dw"
+path = "src/bin/souris-dw/main.rs"
+
+[lib]
+name = "souris_dw"
+path = "src/lib.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+
+# Errors
+thiserror = "2"
+anyhow = "1"
+
+# YouTube download (wraps yt-dlp)
+youtube_dl = "0.10"
+
+# Spotify metadata
+rspotify = "0.13"
+
+# Audio/video processing (optional - uses subprocess by default)
+ffmpeg-next = { version = "7", optional = true }
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Audio metadata (ID3 tags, album art, etc.)
+lofty = "0.21"
+
+# Path utilities (cross-platform)
+directories = "6"
+dunce = "1"
+path-slash = "0.2"
+normalize-path = "0.2"
+
+# Filesystem
+fs-err = "3"
+fs4 = "0.9"
+tempfile = "3"
+sanitize-filename = "0.6"
+
+# Unicode
+unicode-normalization = "0.1"
+
+# Signal handling
+ctrlc = "3"
+
+# Find executables
+which = "7"
+
+# TLS certs (system)
+rustls-native-certs = "0.8"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Async streams
+futures = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
