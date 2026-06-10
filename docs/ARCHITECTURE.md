@@ -8,6 +8,7 @@ SourisDW is a cross-platform music & video downloader built in Rust. It uses yt-
 
 ```
 souris-dw/
+├── build.rs                 # Downloads ffmpeg at compile time (embedded via include_bytes!)
 ├── src/
 │   ├── lib.rs              # Public API exports
 │   ├── bin/souris-dw/      # CLI binary
@@ -21,7 +22,7 @@ souris-dw/
 │   ├── deps/               # Dependency management
 │   │   ├── platform.rs     # OS/arch detection
 │   │   ├── yt_dlp.rs       # yt-dlp auto-download & update
-│   │   ├── ffmpeg.rs       # ffmpeg detection
+│   │   ├── ffmpeg.rs       # ffmpeg extraction from embedded binary
 │   │   └── mod.rs          # DepManager
 │   ├── extractors/         # Platform extractors
 │   │   ├── youtube.rs      # YouTube via yt-dlp
@@ -90,9 +91,10 @@ User Input (URL)
 - Rollback on repeated failures
 
 ### ffmpeg
-- Detected from system PATH
-- Used for format conversion and post-processing
-- Optional: some features work without it
+- Static binary embedded at compile time via `include_bytes!` (build.rs downloads from GitHub)
+- Extracted to platform data directory on first run
+- Passed to yt-dlp via `--ffmpeg-location` for audio conversion
+- Falls back to system ffmpeg if embedded version is empty
 
 ## Platform Detection
 

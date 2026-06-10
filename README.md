@@ -22,6 +22,7 @@
 
 <p align="center">
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64"><img src="https://img.shields.io/badge/Linux_x86__64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-fedora"><img src="https://img.shields.io/badge/Fedora_x86__64-download-orange?style=for-the-badge&logo=fedora&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-musl"><img src="https://img.shields.io/badge/Linux_x86__64_musl-download-purple?style=for-the-badge&logo=linux&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-aarch64"><img src="https://img.shields.io/badge/Linux_ARM64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-x86_64"><img src="https://img.shields.io/badge/macOS_Intel-download-blue?style=for-the-badge&logo=apple&logoColor=white" /></a>
@@ -45,7 +46,7 @@
 - Use as a **library** in your own Rust projects
 - Use as a **motor** from any programming language via subprocess + JSON
 - Zero external dependencies to install - everything is bundled
-- Auto-updates yt-dlp and ffmpeg silently
+- Auto-updates yt-dlp silently
 - Cross-platform: Linux, macOS, Windows
 
 ---
@@ -134,8 +135,10 @@ souris-dw tui
 Interactive terminal interface with:
 - Real-time download progress
 - Queue management
-- Keyboard shortcuts
+- Keyboard shortcuts (vim-style navigation)
 - Settings panel
+- Clipboard support (y copies URL)
+- Double-Esc to quit
 
 ### As a Library (Rust)
 
@@ -242,7 +245,7 @@ User Input (URL)
       |                                   |
       | Detects:                         | Uses:
       | - YouTube                        | - yt-dlp (auto-downloaded)
-      | - Spotify                        | - ffmpeg (bundled)
+      | - Spotify                        | - ffmpeg (embedded)
       | - Playlist                       |
       v                                   v
 +-----------+                      +-----------+
@@ -270,9 +273,6 @@ Configuration is stored at:
 auto_update = true
 channel = "nightly"
 
-[ffmpeg]
-auto_update = true
-
 [download]
 default_format = "mp4"
 default_quality = "1080p"
@@ -292,13 +292,13 @@ max_retries = 3
 ```bash
 # Prerequisites
 # - Rust 1.70+
-# - ffmpeg (for runtime)
+# - curl (for build.rs to download ffmpeg)
 
 # Clone
 git clone https://github.com/SourisCG/SourisDW.git
 cd SourisDW
 
-# Build
+# Build (ffmpeg is downloaded and embedded automatically)
 cargo build --release
 
 # Run

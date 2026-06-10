@@ -5,11 +5,17 @@
 | Platform | Architecture | Binary |
 |----------|-------------|--------|
 | Linux | x86_64 | `souris-dw-linux-x86_64` |
+| Linux (Fedora/RHEL) | x86_64 | `souris-dw-linux-x86_64-fedora` |
 | Linux | x86_64 (musl) | `souris-dw-linux-x86_64-musl` |
 | Linux | aarch64 | `souris-dw-linux-aarch64` |
 | macOS | x86_64 | `souris-dw-macos-x86_64` |
 | macOS | aarch64 | `souris-dw-macos-aarch64` |
 | Windows | x86_64 | `souris-dw-windows-x86_64.exe` |
+
+**Binary compatibility:**
+- `souris-dw-linux-x86_64` - Built on Ubuntu, works on Ubuntu/Debian and similar
+- `souris-dw-linux-x86_64-fedora` - Built natively on Fedora, works on Fedora/RHEL/CentOS
+- `souris-dw-linux-x86_64-musl` - Statically linked, works on ANY Linux distro (universal fallback)
 
 ## File System Differences
 
@@ -120,16 +126,17 @@ SourisDW uses the `ctrlc` crate for cross-platform Ctrl+C handling.
 
 | Platform | Source |
 |----------|--------|
-| Linux | `/etc/ssl/certs` (via `openssl-probe`) |
-| macOS | Keychain (via `security-framework`) |
-| Windows | Windows Certificate Store (via `schannel`) |
+| Linux | `/etc/ssl/certs` (via `rustls-native-certs` + `openssl-probe`) |
+| macOS | System Keychain (via `rustls-native-certs`) |
+| Windows | Windows Certificate Store (via `rustls-native-certs`) |
 
-SourisDW uses `rustls-native-certs` to load system certificates.
+SourisDW uses `rustls` (not OpenSSL) for TLS. System certificates are loaded via `rustls-native-certs`.
 
 ## Testing Matrix
 
-CI tests run on all three platforms:
+CI tests run on all platforms:
 - Ubuntu (latest)
+- Fedora (latest) - native container build
 - macOS (latest)
 - Windows (latest)
 

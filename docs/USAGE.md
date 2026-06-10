@@ -3,16 +3,27 @@
 ## Installation
 
 ```bash
-# Linux x86_64
-curl -sL https://github.com/souris/souris-dw/releases/latest/download/souris-dw-linux-x86_64 -o souris-dw
+# Linux x86_64 (Ubuntu/Debian)
+curl -sL https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64 -o souris-dw
 chmod +x souris-dw
+sudo mv souris-dw /usr/local/bin/
+
+# Fedora/RHEL (native glibc build)
+curl -sL https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-fedora -o souris-dw
+chmod +x souris-dw
+sudo mv souris-dw /usr/local/bin/
+
+# Linux (musl, works on any distro)
+curl -sL https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-musl -o souris-dw
+chmod +x souris-dw
+sudo mv souris-dw /usr/local/bin/
 
 # Linux aarch64
-curl -sL https://github.com/souris/souris-dw/releases/latest/download/souris-dw-linux-aarch64 -o souris-dw
+curl -sL https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-aarch64 -o souris-dw
 chmod +x souris-dw
 
-# macOS (Universal)
-curl -sL https://github.com/souris/souris-dw/releases/latest/download/souris-dw-macos-x86_64 -o souris-dw
+# macOS
+curl -sL https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-x86_64 -o souris-dw
 chmod +x souris-dw
 
 # Windows
@@ -123,6 +134,16 @@ souris-dw deps status
 souris-dw deps update
 ```
 
+### Uninstall
+
+```bash
+# Remove binary (keeps config)
+souris-dw uninstall
+
+# Remove everything (binary + config + data)
+souris-dw uninstall --keep-config=false
+```
+
 ### TUI Mode
 
 ```bash
@@ -136,12 +157,16 @@ souris-dw tui
 | `/` | Search |
 | `j` / `Down` | Move down |
 | `k` / `Up` | Move up |
+| `g` / `Home` | Go to first |
+| `G` / `End` | Go to last |
 | `Enter` | Download selected |
-| `d` | Delete selected |
+| `y` | Copy URL to clipboard |
+| `d` / `Delete` | Delete selected |
 | `p` | Pause/Resume |
 | `s` | Settings |
 | `h` / `?` | Help |
-| `q` / `Esc` | Quit |
+| `q` / `Esc` | Back (double-Esc to quit) |
+| `Ctrl+c` | Force quit |
 
 ## JSON Output
 
@@ -180,9 +205,6 @@ Located at:
 [yt_dlp]
 auto_update = true
 channel = "nightly"  # stable, nightly, master
-
-[ffmpeg]
-auto_update = true
 
 [download]
 default_format = "mp4"
