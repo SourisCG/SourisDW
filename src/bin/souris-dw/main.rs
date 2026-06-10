@@ -182,9 +182,7 @@ async fn handle_download(
     json: bool,
     no_auto_update: bool,
 ) -> Result<()> {
-    let mut builder = souris_dw::SourisDW::builder()
-        .auto_update(!no_auto_update)
-        .yt_dlp_channel("stable");
+    let mut builder = souris_dw::SourisDW::builder().auto_update(!no_auto_update);
 
     if let Some(f) = format {
         builder = builder.format_str(f)?;
@@ -248,7 +246,6 @@ async fn handle_download(
 async fn handle_info(url: &str, json: bool) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
-        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -279,7 +276,6 @@ async fn handle_search(
 ) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
-        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -310,7 +306,6 @@ async fn handle_update(
 ) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
-        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -403,7 +398,6 @@ async fn handle_config(action: ConfigAction, json: bool) -> Result<()> {
 async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
-        .yt_dlp_channel("stable")
         .build()
         .await?;
 
@@ -496,6 +490,30 @@ async fn handle_uninstall(keep_config: bool, json: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
+enum TuiDownloadEvent {
+    Started {
+        index: usize,
+        title: String,
+        platform: String,
+    },
+    Progress {
+        index: usize,
+        percent: f64,
+        speed: String,
+        eta: String,
+    },
+    Complete {
+        index: usize,
+        path: String,
+        size: u64,
+    },
+    Error {
+        index: usize,
+        message: String,
+    },
+}
+
 async fn handle_tui() -> Result<()> {
     use crossterm::{
         event::{DisableMouseCapture, EnableMouseCapture},
@@ -513,42 +531,10 @@ async fn handle_tui() -> Result<()> {
 
     let mut app = AppState::new();
     let tick_rate = std::time::Duration::from_millis(100);
-
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<DownloadEvent>();
-    let mut rx = rx;
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<TuiDownloadEvent>();
 
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
-
-        while let Ok(event) = rx.try_recv() {
-            match event {
-                DownloadEvent::Started { id } => {
-                    if let Some(dl) = app.downloads.get_mut(id) {
-                        dl.status = souris_dw::tui::app::DownloadStatus::Downloading;
-                    }
-                }
-                DownloadEvent::Completed {
-                    id,
-                    success,
-                    path,
-                    error,
-                } => {
-                    if let Some(dl) = app.downloads.get_mut(id) {
-                        if success {
-                            dl.status = souris_dw::tui::app::DownloadStatus::Complete;
-                            dl.progress = 100.0;
-                            dl.path = Some(path);
-                            app.status_message = Some(format!("Download {} completed", id + 1));
-                        } else {
-                            dl.status = souris_dw::tui::app::DownloadStatus::Error(
-                                error.unwrap_or_else(|| "Unknown error".into()),
-                            );
-                            app.status_message = Some(format!("Download {} failed", id + 1));
-                        }
-                    }
-                }
-            }
-        }
 
         match events::poll_event(tick_rate)? {
             Some(events::AppEvent::Key(key)) => {
@@ -598,15 +584,7 @@ async fn handle_tui() -> Result<()> {
                             }
                         }
                         events::Action::MoveDown => {
-                            if app.show_settings {
-                                if app.settings_index
-                                    < souris_dw::tui::app::SETTINGS_OPTIONS.len() - 1
-                                {
-                                    app.settings_index += 1;
-                                }
-                                let visible = terminal.size()?.height.saturating_sub(8) as usize;
-                                app.update_settings_scroll(visible);
-                            } else if app.show_search {
+                            if app.show_search {
                                 if app.search_index < app.search_results.len().saturating_sub(1) {
                                     app.search_index += 1;
                                 }
@@ -616,11 +594,7 @@ async fn handle_tui() -> Result<()> {
                             app.waiting_for_quit = false;
                         }
                         events::Action::MoveUp => {
-                            if app.show_settings {
-                                if app.settings_index > 0 {
-                                    app.settings_index -= 1;
-                                }
-                            } else if app.show_search {
+                            if app.show_search {
                                 if app.search_index > 0 {
                                     app.search_index -= 1;
                                 }
@@ -646,64 +620,74 @@ async fn handle_tui() -> Result<()> {
                                 app.input_buffer.clear();
                             } else if !app.input_buffer.is_empty() {
                                 let url = app.input_buffer.clone();
-                                let audio_only = app.config.audio_only;
-                                let audio_format = app.config.audio_format.clone();
-                                let format = app.config.default_format.clone();
-                                let quality = app.config.default_quality.clone();
-                                let output = app.config.output_dir.display().to_string();
-                                let embed_metadata = app.config.embed_metadata;
-                                let embed_thumbnail = app.config.embed_thumbnail;
-                                let download_id = app.downloads.len();
-
-                                app.add_download(url.clone(), url.clone(), "Unknown".into());
+                                let index = app.add_download(
+                                    url.clone(),
+                                    url.clone(),
+                                    "Unknown".to_string(),
+                                );
                                 app.cancel_input();
                                 app.status_message = Some("Starting download...".into());
 
                                 let tx = tx.clone();
+                                let audio_only = app.config.audio_only;
+                                let audio_format = app.config.audio_format.clone();
+                                let output_dir = app.config.output_dir.clone();
+                                let embed_metadata = app.config.embed_metadata;
+                                let embed_thumbnail = app.config.embed_thumbnail;
+                                let embed_subtitles = false;
+
                                 tokio::spawn(async move {
-                                    let _ = tx.send(DownloadEvent::Started { id: download_id });
                                     let result = async {
-                                        let mut builder = souris_dw::SourisDW::builder()
-                                            .auto_update(true)
+                                        let dw = souris_dw::SourisDW::builder()
+                                            .auto_update(false)
                                             .yt_dlp_channel("stable")
-                                            .output(&output)
-                                            .embed_metadata(embed_metadata)
-                                            .embed_thumbnail(embed_thumbnail);
+                                            .spotify_credentials(
+                                                std::env::var("SOURIS_SPOTIFY_CLIENT_ID")
+                                                    .unwrap_or_default(),
+                                                std::env::var("SOURIS_SPOTIFY_CLIENT_SECRET")
+                                                    .unwrap_or_default(),
+                                            )
+                                            .build()
+                                            .await?;
 
-                                        if audio_only {
-                                            builder = builder.format_str(&audio_format)?;
-                                        } else {
-                                            builder = builder.format_str(&format)?;
-                                        }
+                                        let _ = tx.send(TuiDownloadEvent::Started {
+                                            index,
+                                            title: url.clone(),
+                                            platform: "YouTube".into(),
+                                        });
 
-                                        let builder = builder.quality_str(&quality)?;
-                                        let dw = builder.build().await?;
-
-                                        let req = if audio_only {
+                                        let mut req = if audio_only {
                                             dw.download_audio(&url)
                                         } else {
                                             dw.download(&url)
                                         };
+
+                                        req = req
+                                            .output(output_dir)
+                                            .embed_metadata(embed_metadata)
+                                            .embed_thumbnail(embed_thumbnail)
+                                            .embed_subtitles(embed_subtitles);
+
+                                        if audio_only {
+                                            req = req.format_str(&audio_format)?;
+                                        }
 
                                         req.run().await
                                     }
                                     .await;
 
                                     match result {
-                                        Ok(r) => {
-                                            let _ = tx.send(DownloadEvent::Completed {
-                                                id: download_id,
-                                                success: r.success,
-                                                path: r.path.unwrap_or_default(),
-                                                error: r.error,
+                                        Ok(res) => {
+                                            let _ = tx.send(TuiDownloadEvent::Complete {
+                                                index,
+                                                path: res.path.unwrap_or_default(),
+                                                size: res.size.unwrap_or(0),
                                             });
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(DownloadEvent::Completed {
-                                                id: download_id,
-                                                success: false,
-                                                path: String::new(),
-                                                error: Some(e.to_string()),
+                                            let _ = tx.send(TuiDownloadEvent::Error {
+                                                index,
+                                                message: e.to_string(),
                                             });
                                         }
                                     }
@@ -734,7 +718,50 @@ async fn handle_tui() -> Result<()> {
                     }
                 }
             }
-            Some(events::AppEvent::Tick) => {}
+            Some(events::AppEvent::Tick) => {
+                while let Ok(event) = rx.try_recv() {
+                    match event {
+                        TuiDownloadEvent::Started {
+                            index,
+                            title,
+                            platform,
+                        } => {
+                            if let Some(dl) = app.downloads.get_mut(index) {
+                                dl.title = title;
+                                dl.platform = platform;
+                                dl.status = souris_dw::tui::app::DownloadStatus::Downloading;
+                            }
+                        }
+                        TuiDownloadEvent::Progress {
+                            index,
+                            percent,
+                            speed,
+                            eta,
+                        } => {
+                            if let Some(dl) = app.downloads.get_mut(index) {
+                                dl.progress = percent;
+                                dl.speed = speed;
+                                dl.eta = eta;
+                                dl.status = souris_dw::tui::app::DownloadStatus::Downloading;
+                            }
+                        }
+                        TuiDownloadEvent::Complete { index, path, size } => {
+                            if let Some(dl) = app.downloads.get_mut(index) {
+                                dl.status = souris_dw::tui::app::DownloadStatus::Complete;
+                                dl.progress = 100.0;
+                                dl.path = Some(path);
+                                dl.size = Some(size);
+                            }
+                            app.status_message = Some("Download complete".into());
+                        }
+                        TuiDownloadEvent::Error { index, message } => {
+                            if let Some(dl) = app.downloads.get_mut(index) {
+                                dl.status = souris_dw::tui::app::DownloadStatus::Error(message);
+                            }
+                        }
+                    }
+                }
+            }
             Some(events::AppEvent::Quit) => break,
             None => {}
         }
@@ -749,16 +776,4 @@ async fn handle_tui() -> Result<()> {
     terminal.show_cursor()?;
 
     Ok(())
-}
-
-enum DownloadEvent {
-    Started {
-        id: usize,
-    },
-    Completed {
-        id: usize,
-        success: bool,
-        path: String,
-        error: Option<String>,
-    },
 }
