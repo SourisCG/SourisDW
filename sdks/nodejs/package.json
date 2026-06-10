@@ -1,0 +1,20 @@
+{
+  "name": "souris-dw",
+  "version": "0.1.0",
+  "description": "Cross-platform music & video downloader for YouTube and Spotify",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "test": "node tests/test.js"
+  },
+  "keywords": ["youtube", "spotify", "downloader", "music", "video"],
+  "author": "SourisDW",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/souris/souris-dw.git"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

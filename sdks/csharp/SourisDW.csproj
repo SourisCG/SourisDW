@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SourisDW</RootNamespace>
+    <AssemblyName>SourisDW</AssemblyName>
+    <Version>0.1.0</Version>
+    <Authors>SourisDW</Authors>
+    <Description>Cross-platform music & video downloader for YouTube and Spotify</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>youtube;spotify;downloader;music;video</PackageTags>
+    <RepositoryUrl>https://github.com/souris/souris-dw</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>
