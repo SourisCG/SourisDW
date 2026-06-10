@@ -12,6 +12,9 @@ pub struct AppState {
     pub search_results: Vec<SearchResult>,
     pub status_message: Option<String>,
     pub config: AppConfigState,
+    pub waiting_for_quit: bool,
+    pub settings_index: usize,
+    pub search_index: usize,
 }
 
 pub struct DownloadState {
@@ -62,6 +65,16 @@ pub struct AppConfigState {
     pub auto_update: bool,
 }
 
+pub const SETTINGS_OPTIONS: &[&str] = &[
+    "Format",
+    "Quality",
+    "Output Dir",
+    "Parallel Downloads",
+    "Embed Metadata",
+    "Embed Thumbnail",
+    "Auto Update",
+];
+
 impl Default for AppState {
     fn default() -> Self {
         Self::new()
@@ -81,6 +94,9 @@ impl AppState {
             search_results: Vec::new(),
             status_message: None,
             config: AppConfigState::default(),
+            waiting_for_quit: false,
+            settings_index: 0,
+            search_index: 0,
         }
     }
 
@@ -202,12 +218,26 @@ impl AppState {
         }
     }
 
+    pub fn has_overlay(&self) -> bool {
+        self.show_help || self.show_search || self.show_settings
+    }
+
+    pub fn close_overlay(&mut self) {
+        self.show_help = false;
+        self.show_search = false;
+        self.show_settings = false;
+        self.input_mode = InputMode::Normal;
+        self.waiting_for_quit = false;
+    }
+
     pub fn toggle_help(&mut self) {
         self.show_help = !self.show_help;
+        self.waiting_for_quit = false;
     }
 
     pub fn toggle_settings(&mut self) {
         self.show_settings = !self.show_settings;
+        self.waiting_for_quit = false;
     }
 
     pub fn toggle_search(&mut self) {
@@ -215,19 +245,32 @@ impl AppState {
         if self.show_search {
             self.input_mode = InputMode::Search;
             self.input_buffer.clear();
+            self.search_index = 0;
         } else {
             self.input_mode = InputMode::Normal;
         }
+        self.waiting_for_quit = false;
     }
 
     pub fn start_input(&mut self) {
         self.input_mode = InputMode::Input;
         self.input_buffer.clear();
+        self.waiting_for_quit = false;
     }
 
     pub fn cancel_input(&mut self) {
         self.input_mode = InputMode::Normal;
         self.input_buffer.clear();
+        self.waiting_for_quit = false;
+    }
+
+    pub fn copy_selected_url(&self) -> bool {
+        if let Some(dl) = self.downloads.get(self.selected_index) {
+            if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                return clipboard.set_text(&dl.url).is_ok();
+            }
+        }
+        false
     }
 
     pub fn get_active_count(&self) -> usize {
@@ -254,6 +297,52 @@ impl AppState {
             .iter()
             .filter(|d| matches!(d.status, DownloadStatus::Error(_)))
             .count()
+    }
+
+    pub fn get_setting_value(&self, index: usize) -> String {
+        match index {
+            0 => self.config.default_format.clone(),
+            1 => self.config.default_quality.clone(),
+            2 => self.config.output_dir.display().to_string(),
+            3 => self.config.parallel.to_string(),
+            4 => self.config.embed_metadata.to_string(),
+            5 => self.config.embed_thumbnail.to_string(),
+            6 => self.config.auto_update.to_string(),
+            _ => String::new(),
+        }
+    }
+
+    pub fn cycle_setting_value(&mut self, index: usize) {
+        match index {
+            0 => {
+                let formats = ["mp4", "mkv", "webm", "avi", "mov"];
+                let current = formats
+                    .iter()
+                    .position(|&f| f == self.config.default_format)
+                    .unwrap_or(0);
+                self.config.default_format = formats[(current + 1) % formats.len()].to_string();
+            }
+            1 => {
+                let qualities = ["360p", "480p", "720p", "1080p", "1440p", "2160p"];
+                let current = qualities
+                    .iter()
+                    .position(|&q| q == self.config.default_quality)
+                    .unwrap_or(0);
+                self.config.default_quality =
+                    qualities[(current + 1) % qualities.len()].to_string();
+            }
+            3 => {
+                self.config.parallel = if self.config.parallel >= 8 {
+                    1
+                } else {
+                    self.config.parallel + 1
+                };
+            }
+            4 => self.config.embed_metadata = !self.config.embed_metadata,
+            5 => self.config.embed_thumbnail = !self.config.embed_thumbnail,
+            6 => self.config.auto_update = !self.config.auto_update,
+            _ => {}
+        }
     }
 }
 

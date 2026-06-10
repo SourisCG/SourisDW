@@ -78,6 +78,9 @@ ctrlc = "3"
 # Find executables
 which = "7"
 
+# Clipboard
+arboard = "3"
+
 # TLS certs (system)
 rustls-native-certs = "0.8"
 

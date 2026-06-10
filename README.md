@@ -22,6 +22,7 @@
 
 <p align="center">
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64"><img src="https://img.shields.io/badge/Linux_x86__64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-musl"><img src="https://img.shields.io/badge/Linux_x86__64_musl-download-purple?style=for-the-badge&logo=linux&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-aarch64"><img src="https://img.shields.io/badge/Linux_ARM64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-x86_64"><img src="https://img.shields.io/badge/macOS_Intel-download-blue?style=for-the-badge&logo=apple&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-aarch64"><img src="https://img.shields.io/badge/macOS_Apple__Silicon-download-blue?style=for-the-badge&logo=apple&logoColor=white" /></a>

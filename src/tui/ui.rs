@@ -1,4 +1,4 @@
-use crate::tui::app::{AppState, DownloadStatus, InputMode};
+use crate::tui::app::{AppState, DownloadStatus, InputMode, SETTINGS_OPTIONS};
 use crate::tui::theme::{format_duration, progress_bar, OPENCODE_THEME};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -28,6 +28,10 @@ pub fn draw(f: &mut Frame, app: &AppState) {
 
     if app.show_search {
         draw_search_overlay(f, app);
+    }
+
+    if app.show_settings {
+        draw_settings_overlay(f, app);
     }
 }
 
@@ -320,10 +324,23 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &AppState) {
-    let shortcuts = match app.input_mode {
-        InputMode::Normal => " [a] Add URL  [/] Search  [Enter] Download  [p] Pause  [c] Cancel  [s] Settings  [h] Help  [q] Quit ",
-        InputMode::Input => " [Enter] Confirm  [Esc] Cancel ",
-        InputMode::Search => " [Enter] Search  [Esc] Cancel ",
+    let shortcuts = if app.waiting_for_quit {
+        " [Esc] Quit  [any key] Cancel "
+    } else if app.show_help || app.show_settings {
+        " [Esc] Back "
+    } else if app.show_search {
+        match app.input_mode {
+            InputMode::Search => " [Enter] Search  [j/k] Navigate  [Esc] Back ",
+            _ => " [Esc] Back ",
+        }
+    } else {
+        match app.input_mode {
+            InputMode::Normal => {
+                " [a] Add URL  [/] Search  [y] Copy URL  [h] Help  [s] Settings  [Esc] Back "
+            }
+            InputMode::Input => " [Enter] Confirm  [Esc] Back ",
+            InputMode::Search => " [Enter] Search  [Esc] Back ",
+        }
     };
 
     let footer = Paragraph::new(vec![Line::from(vec![Span::styled(
@@ -382,6 +399,7 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
         Line::from("  a         Add URL"),
         Line::from("  /         Search"),
         Line::from("  Enter     Download selected"),
+        Line::from("  y         Copy URL to clipboard"),
         Line::from("  d         Delete selected"),
         Line::from("  p         Pause/Resume"),
         Line::from("  c         Cancel"),
@@ -392,7 +410,8 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
         )]),
         Line::from("  s         Settings"),
         Line::from("  h/?       Help"),
-        Line::from("  q/Esc     Quit"),
+        Line::from("  Esc       Back / Quit"),
+        Line::from("  Ctrl+c    Force quit"),
     ];
 
     let help_block = Paragraph::new(help_text)
@@ -411,6 +430,50 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
         .style(Style::default().bg(OPENCODE_THEME.background));
 
     f.render_widget(help_block, area);
+}
+
+fn draw_settings_overlay(f: &mut Frame, app: &AppState) {
+    let area = centered_rect(50, 60, f.area());
+
+    f.render_widget(Clear, area);
+
+    let mut items: Vec<ListItem> = Vec::new();
+
+    for (i, option) in SETTINGS_OPTIONS.iter().enumerate() {
+        let is_selected = i == app.settings_index;
+        let value = app.get_setting_value(i);
+
+        let style = if is_selected {
+            Style::default()
+                .fg(OPENCODE_THEME.highlight)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(OPENCODE_THEME.foreground)
+        };
+
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled(format!("  {} ", option), style),
+            Span::styled(
+                format!("[{}]", value),
+                Style::default().fg(OPENCODE_THEME.info),
+            ),
+        ])));
+    }
+
+    let settings_block = List::new(items).block(
+        Block::default()
+            .title(" Settings ")
+            .title_style(
+                Style::default()
+                    .fg(OPENCODE_THEME.title)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(OPENCODE_THEME.border))
+            .style(Style::default().bg(OPENCODE_THEME.background)),
+    );
+
+    f.render_widget(settings_block, area);
 }
 
 fn draw_search_overlay(f: &mut Frame, app: &AppState) {
@@ -434,7 +497,8 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
         )])));
     } else {
         for (i, result) in app.search_results.iter().enumerate() {
-            let style = if result.selected {
+            let is_selected = i == app.search_index;
+            let style = if is_selected {
                 Style::default()
                     .fg(OPENCODE_THEME.highlight)
                     .add_modifier(Modifier::BOLD)

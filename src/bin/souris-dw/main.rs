@@ -79,6 +79,10 @@ enum Commands {
         #[command(subcommand)]
         action: DepsAction,
     },
+    Uninstall {
+        #[arg(long)]
+        keep_config: bool,
+    },
     Tui,
 }
 
@@ -144,6 +148,7 @@ async fn main() {
         } => handle_update(yt_dlp, ffmpeg, self_, check, cli.json).await,
         Commands::Config { action } => handle_config(action, cli.json).await,
         Commands::Deps { action } => handle_deps(action, cli.json).await,
+        Commands::Uninstall { keep_config } => handle_uninstall(keep_config, cli.json).await,
         Commands::Tui => handle_tui().await,
     };
 
@@ -229,12 +234,10 @@ async fn handle_download(
                 "size": result.size
             }))?
         );
+    } else if result.success {
+        println!("Downloaded: {}", result.path.unwrap_or_default());
     } else {
-        if result.success {
-            println!("Downloaded: {}", result.path.unwrap_or_default());
-        } else {
-            eprintln!("Download failed: {}", result.error.unwrap_or_default());
-        }
+        eprintln!("Download failed: {}", result.error.unwrap_or_default());
     }
 
     Ok(())
@@ -435,6 +438,58 @@ async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
     Ok(())
 }
 
+async fn handle_uninstall(keep_config: bool, json: bool) -> Result<()> {
+    let exe_path = std::env::current_exe()?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "type": "uninstall",
+                "binary": exe_path.display().to_string(),
+                "keep_config": keep_config
+            }))?
+        );
+    } else {
+        println!("SourisDW Uninstaller");
+        println!("===================");
+        println!();
+        println!("Binary: {}", exe_path.display());
+
+        if !keep_config {
+            if let Some(config_dir) = directories::ProjectDirs::from("", "", "souris-dw") {
+                let config_path = config_dir.config_dir();
+                let data_path = config_dir.data_dir();
+                println!("Config: {}", config_path.display());
+                println!("Data:   {}", data_path.display());
+            }
+        } else {
+            println!("Keeping config and data files.");
+        }
+        println!();
+    }
+
+    fs_err::remove_file(&exe_path).map_err(|e| {
+        souris_dw::SourisError::ConfigError(format!(
+            "Failed to remove binary: {}. You may need to run with sudo.",
+            e
+        ))
+    })?;
+
+    if !keep_config {
+        if let Some(config_dir) = directories::ProjectDirs::from("", "", "souris-dw") {
+            let _ = fs_err::remove_dir_all(config_dir.config_dir());
+            let _ = fs_err::remove_dir_all(config_dir.data_dir());
+        }
+    }
+
+    if !json {
+        println!("Uninstalled successfully.");
+    }
+
+    Ok(())
+}
+
 async fn handle_tui() -> Result<()> {
     use crossterm::{
         event::{DisableMouseCapture, EnableMouseCapture},
@@ -458,28 +513,114 @@ async fn handle_tui() -> Result<()> {
 
         match events::poll_event(tick_rate)? {
             Some(events::AppEvent::Key(key)) => {
-                if let Some(action) = events::handle_key_event(key) {
+                let action = events::handle_key_event(key, &app.input_mode);
+                if let Some(action) = action {
                     match action {
-                        events::Action::Quit => break,
+                        events::Action::Back => {
+                            if app.show_help {
+                                app.show_help = false;
+                                app.waiting_for_quit = false;
+                            } else if app.show_settings {
+                                app.show_settings = false;
+                                app.waiting_for_quit = false;
+                            } else if app.show_search {
+                                app.toggle_search();
+                                app.waiting_for_quit = false;
+                            } else {
+                                match app.input_mode {
+                                    souris_dw::tui::app::InputMode::Input => {
+                                        app.cancel_input();
+                                    }
+                                    souris_dw::tui::app::InputMode::Search => {
+                                        app.cancel_input();
+                                    }
+                                    souris_dw::tui::app::InputMode::Normal => {
+                                        if app.waiting_for_quit {
+                                            break;
+                                        } else {
+                                            app.waiting_for_quit = true;
+                                            app.status_message =
+                                                Some("Press Esc again to quit".into());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        events::Action::ForceQuit => break,
                         events::Action::AddUrl => app.start_input(),
                         events::Action::Search => app.toggle_search(),
                         events::Action::Help => app.toggle_help(),
                         events::Action::Settings => app.toggle_settings(),
-                        events::Action::MoveDown => app.move_selection_down(),
-                        events::Action::MoveUp => app.move_selection_up(),
-                        events::Action::MoveFirst => app.selected_index = 0,
+                        events::Action::CopyUrl => {
+                            if app.copy_selected_url() {
+                                app.status_message = Some("URL copied to clipboard".into());
+                            } else {
+                                app.status_message = Some("Failed to copy URL".into());
+                            }
+                        }
+                        events::Action::MoveDown => {
+                            if app.show_search {
+                                if app.search_index < app.search_results.len().saturating_sub(1) {
+                                    app.search_index += 1;
+                                }
+                            } else {
+                                app.move_selection_down();
+                            }
+                            app.waiting_for_quit = false;
+                        }
+                        events::Action::MoveUp => {
+                            if app.show_search {
+                                if app.search_index > 0 {
+                                    app.search_index -= 1;
+                                }
+                            } else {
+                                app.move_selection_up();
+                            }
+                            app.waiting_for_quit = false;
+                        }
+                        events::Action::MoveFirst => {
+                            app.selected_index = 0;
+                            app.waiting_for_quit = false;
+                        }
                         events::Action::MoveLast => {
-                            app.selected_index = app.downloads.len().saturating_sub(1)
+                            app.selected_index = app.downloads.len().saturating_sub(1);
+                            app.waiting_for_quit = false;
                         }
                         events::Action::Confirm => {
-                            if !app.input_buffer.is_empty() {
+                            if app.show_settings {
+                                app.cycle_setting_value(app.settings_index);
+                            } else if app.show_search && !app.input_buffer.is_empty() {
+                                let query = app.input_buffer.clone();
+                                app.status_message = Some(format!("Searching: {}", query));
+                                app.input_buffer.clear();
+                            } else if !app.input_buffer.is_empty() {
                                 let url = app.input_buffer.clone();
                                 app.add_download(url.clone(), url.clone(), "Unknown".to_string());
                                 app.cancel_input();
+                                app.status_message = Some("Download queued".into());
                             }
                         }
-                        events::Action::Cancel => app.cancel_input(),
-                        _ => {}
+                        events::Action::Delete => {
+                            if matches!(
+                                app.input_mode,
+                                souris_dw::tui::app::InputMode::Input
+                                    | souris_dw::tui::app::InputMode::Search
+                            ) {
+                                app.input_buffer.pop();
+                            }
+                        }
+                        events::Action::Pause => {}
+                        events::Action::Cancel => {
+                            app.cancel_input();
+                            app.waiting_for_quit = false;
+                        }
+                        events::Action::CharInput(c) => {
+                            app.input_buffer.push(c);
+                            app.waiting_for_quit = false;
+                        }
+                        events::Action::DeleteChar => {
+                            app.input_buffer.pop();
+                        }
                     }
                 }
             }
