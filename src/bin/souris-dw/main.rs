@@ -559,7 +559,11 @@ async fn handle_tui() -> Result<()> {
                             }
                         }
                         events::Action::MoveDown => {
-                            if app.show_search {
+                            if app.show_settings {
+                                if app.settings_index < souris_dw::tui::app::SETTINGS_OPTIONS.len() - 1 {
+                                    app.settings_index += 1;
+                                }
+                            } else if app.show_search {
                                 if app.search_index < app.search_results.len().saturating_sub(1) {
                                     app.search_index += 1;
                                 }
@@ -569,7 +573,11 @@ async fn handle_tui() -> Result<()> {
                             app.waiting_for_quit = false;
                         }
                         events::Action::MoveUp => {
-                            if app.show_search {
+                            if app.show_settings {
+                                if app.settings_index > 0 {
+                                    app.settings_index -= 1;
+                                }
+                            } else if app.show_search {
                                 if app.search_index > 0 {
                                     app.search_index -= 1;
                                 }

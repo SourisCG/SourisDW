@@ -36,7 +36,7 @@ fn handle_normal_key(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(Action::ForceQuit)
         }
-        KeyCode::Esc => Some(Action::Back),
+        KeyCode::Esc | KeyCode::Char('q') => Some(Action::Back),
         KeyCode::Char('a') => Some(Action::AddUrl),
         KeyCode::Char('/') => Some(Action::Search),
         KeyCode::Char('h') | KeyCode::Char('?') => Some(Action::Help),

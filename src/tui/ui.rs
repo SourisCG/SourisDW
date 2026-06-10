@@ -325,21 +325,23 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &AppState) {
     let shortcuts = if app.waiting_for_quit {
-        " [Esc] Quit  [any key] Cancel "
-    } else if app.show_help || app.show_settings {
-        " [Esc] Back "
+        " [Esc/q] Quit  [any key] Cancel "
+    } else if app.show_help {
+        " [Esc/q] Back "
+    } else if app.show_settings {
+        " [j/k] Navigate  [Enter] Change  [Esc/q] Back "
     } else if app.show_search {
         match app.input_mode {
-            InputMode::Search => " [Enter] Search  [j/k] Navigate  [Esc] Back ",
-            _ => " [Esc] Back ",
+            InputMode::Search => " [Enter] Search  [j/k] Navigate  [Esc/q] Back ",
+            _ => " [Esc/q] Back ",
         }
     } else {
         match app.input_mode {
             InputMode::Normal => {
-                " [a] Add URL  [/] Search  [y] Copy URL  [h] Help  [s] Settings  [Esc] Back "
+                " [a] Add URL  [/] Search  [y] Copy URL  [h] Help  [s] Settings  [q/Esc] Back "
             }
-            InputMode::Input => " [Enter] Confirm  [Esc] Back ",
-            InputMode::Search => " [Enter] Search  [Esc] Back ",
+            InputMode::Input => " [Enter] Confirm  [Esc/q] Back ",
+            InputMode::Search => " [Enter] Search  [Esc/q] Back ",
         }
     };
 
@@ -410,7 +412,7 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
         )]),
         Line::from("  s         Settings"),
         Line::from("  h/?       Help"),
-        Line::from("  Esc       Back / Quit"),
+        Line::from("  q/Esc     Back / Quit"),
         Line::from("  Ctrl+c    Force quit"),
     ];
 
