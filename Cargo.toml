@@ -45,7 +45,7 @@ anyhow = "1"
 youtube_dl = "0.10"
 
 # Spotify metadata
-rspotify = "0.13"
+rspotify = { version = "0.13", default-features = false, features = ["client-reqwest", "reqwest-rustls-tls"] }
 
 # Audio/video processing (optional - uses subprocess by default)
 ffmpeg-next = { version = "7", optional = true }
