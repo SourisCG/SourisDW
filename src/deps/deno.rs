@@ -1,5 +1,4 @@
 use crate::deps::platform;
-use crate::error::{Result, SourisError};
 use crate::utils::fs;
 use std::path::{Path, PathBuf};
 
@@ -23,27 +22,42 @@ impl Deno {
         self.binary_path.exists()
     }
 
-    pub async fn ensure_installed() -> Result<Self> {
-        let bin_dir = platform::bin_dir()
-            .ok_or_else(|| SourisError::ConfigError("Cannot determine bin directory".into()))?;
+    pub fn unavailable() -> Self {
+        Self {
+            binary_path: PathBuf::new(),
+            version: None,
+        }
+    }
+
+    pub async fn ensure_installed() -> Self {
+        let bin_dir = match platform::bin_dir() {
+            Some(d) => d,
+            None => {
+                tracing::warn!("Cannot determine bin directory");
+                return Self::unavailable();
+            }
+        };
         let binary_name = platform::deno_binary_name();
         let binary_path = bin_dir.join(&binary_name);
 
         if binary_path.exists() {
             let version = Self::get_version(&binary_path).await.ok();
-            return Ok(Self {
+            return Self {
                 binary_path,
                 version,
-            });
+            };
         }
 
         if !DENO_EMBEDDED.is_empty() {
-            Self::extract_embedded(&bin_dir, &binary_path)?;
+            if let Err(e) = Self::extract_embedded(&bin_dir, &binary_path) {
+                tracing::warn!("Failed to extract embedded deno: {}", e);
+                return Self::unavailable();
+            }
             let version = Self::get_version(&binary_path).await.ok();
-            return Ok(Self {
+            return Self {
                 binary_path,
                 version,
-            });
+            };
         }
 
         tracing::warn!(
@@ -53,30 +67,30 @@ impl Deno {
 
         if let Some(system_deno) = fs::which("deno") {
             let version = Self::get_version(&system_deno).await.ok();
-            return Ok(Self {
+            return Self {
                 binary_path: system_deno,
                 version,
-            });
+            };
         }
 
-        Err(SourisError::DependencyNotFound {
-            name: "deno".into(),
-        })
+        tracing::warn!("deno not found via any method");
+        Self::unavailable()
     }
 
-    fn extract_embedded(bin_dir: &Path, binary_path: &Path) -> Result<()> {
+    fn extract_embedded(bin_dir: &Path, binary_path: &Path) -> crate::error::Result<()> {
         fs::ensure_dir(bin_dir)?;
-        fs_err::write(binary_path, DENO_EMBEDDED).map_err(|e| SourisError::io(binary_path, e))?;
+        fs_err::write(binary_path, DENO_EMBEDDED)
+            .map_err(|e| crate::error::SourisError::io(binary_path, e))?;
         fs::set_executable(binary_path)?;
         Ok(())
     }
 
-    async fn get_version(binary_path: &Path) -> Result<String> {
+    async fn get_version(binary_path: &Path) -> crate::error::Result<String> {
         let output = tokio::process::Command::new(binary_path)
             .arg("--version")
             .output()
             .await
-            .map_err(|e| SourisError::io(binary_path, e))?;
+            .map_err(|e| crate::error::SourisError::io(binary_path, e))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let version = stdout
@@ -88,16 +102,21 @@ impl Deno {
         Ok(version)
     }
 
-    pub async fn update(&self) -> Result<()> {
-        let bin_dir = platform::bin_dir()
-            .ok_or_else(|| SourisError::ConfigError("Cannot determine bin directory".into()))?;
+    pub async fn update(&self) {
+        let bin_dir = match platform::bin_dir() {
+            Some(d) => d,
+            None => {
+                tracing::warn!("Cannot determine bin directory for deno update");
+                return;
+            }
+        };
         let binary_name = platform::deno_binary_name();
         let binary_path = bin_dir.join(&binary_name);
 
         if !DENO_EMBEDDED.is_empty() {
-            Self::extract_embedded(&bin_dir, &binary_path)?;
+            if let Err(e) = Self::extract_embedded(&bin_dir, &binary_path) {
+                tracing::warn!("Failed to update deno: {}", e);
+            }
         }
-
-        Ok(())
     }
 }

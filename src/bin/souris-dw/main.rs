@@ -222,7 +222,7 @@ async fn handle_download(
     builder = builder.embed_thumbnail(embed_thumbnail);
     builder = builder.embed_subtitles(embed_subtitles);
 
-    let dw = builder.build().await?;
+    let dw = builder.build().await;
 
     let mut req = if audio_only {
         dw.download_audio(url)
@@ -265,7 +265,7 @@ async fn handle_info(url: &str, json: bool) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
         .build()
-        .await?;
+        .await;
 
     let info = dw.info(url).await?;
 
@@ -295,7 +295,7 @@ async fn handle_search(
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
         .build()
-        .await?;
+        .await;
 
     let results = dw.search(query).await?;
 
@@ -325,7 +325,7 @@ async fn handle_update(
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
         .build()
-        .await?;
+        .await;
 
     if check {
         let status = dw.update_check().await?;
@@ -417,7 +417,7 @@ async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
         .build()
-        .await?;
+        .await;
 
     match action {
         DepsAction::Status => {
@@ -540,29 +540,6 @@ async fn handle_tui() -> Result<()> {
     };
     use ratatui::prelude::*;
     use souris_dw::tui::{app::AppState, events, ui};
-
-    // Validate dependencies before entering TUI
-    let check_dw = souris_dw::SourisDW::builder()
-        .auto_update(false)
-        .build()
-        .await
-        .map_err(|e| {
-            eprintln!("Error: No se pudo inicializar SourisDW.");
-            eprintln!("Detalle: {}", e);
-            eprintln!("Ejecuta 'souris-dw update' para instalar dependencias faltantes.");
-            e
-        })?;
-    let deps_status = check_dw.update_check().await?;
-    let missing_deps: Vec<_> = deps_status.iter().filter(|d| !d.installed).collect();
-    if !missing_deps.is_empty() {
-        let mut msg = String::from("Missing dependencies:\n");
-        for dep in &missing_deps {
-            msg.push_str(&format!("  - {} ({})\n", dep.name, dep.path));
-        }
-        msg.push_str("\nRun 'souris-dw update' from CLI to install them.");
-        eprintln!("{}", msg);
-        eprintln!("The TUI will start with limited functionality.");
-    }
 
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -698,13 +675,7 @@ async fn handle_tui() -> Result<()> {
                                                 std::env::var("SOURIS_SPOTIFY_CLIENT_SECRET")
                                                     .unwrap_or_default(),
                                             );
-                                        let dw = match builder.build().await {
-                                            Ok(dw) => dw,
-                                            Err(e) => {
-                                                tracing::error!("Failed to build SourisDW: {}", e);
-                                                return Err(e);
-                                            }
-                                        };
+                                        let dw = builder.build().await;
 
                                         let _ = tx.send(TuiDownloadEvent::Started {
                                             index,

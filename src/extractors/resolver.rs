@@ -1,6 +1,6 @@
 use crate::core::request::MediaTypeHint;
 use crate::core::types::*;
-use crate::error::{Result, SourisError};
+use crate::error::SourisError;
 use crate::extractors::spotify::SpotifyExtractor;
 use crate::extractors::youtube::YouTubeExtractor;
 
@@ -29,8 +29,8 @@ impl Resolver {
     pub async fn new(
         spotify_client_id: Option<String>,
         spotify_client_secret: Option<String>,
-    ) -> Result<Self> {
-        let youtube = YouTubeExtractor::new().await?;
+    ) -> Self {
+        let youtube = YouTubeExtractor::new().await;
         let spotify = if spotify_client_id.is_some() && spotify_client_secret.is_some() {
             Some(SpotifyExtractor::new(
                 spotify_client_id,
@@ -40,7 +40,7 @@ impl Resolver {
             None
         };
 
-        Ok(Self { youtube, spotify })
+        Self { youtube, spotify }
     }
 
     pub fn detect_platform(&self, url: &str) -> Platform {

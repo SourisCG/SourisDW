@@ -140,16 +140,16 @@ impl SourisDWBuilder {
         self
     }
 
-    pub async fn build(self) -> Result<SourisDW> {
-        let deps = DepManager::new(self.auto_update, &self.yt_dlp_channel).await?;
+    pub async fn build(self) -> SourisDW {
+        let deps = DepManager::new(self.auto_update, &self.yt_dlp_channel).await;
 
         let resolver = Resolver::new(
             self.spotify_client_id.clone(),
             self.spotify_client_secret.clone(),
         )
-        .await?;
+        .await;
 
-        Ok(SourisDW {
+        SourisDW {
             deps: Arc::new(deps),
             resolver: Arc::new(resolver),
             default_format: self.format,
@@ -168,7 +168,7 @@ impl SourisDWBuilder {
             spotify_client_secret: self.spotify_client_secret,
             cookies_file: self.cookies_file,
             cookies_from_browser: self.cookies_from_browser,
-        })
+        }
     }
 }
 
@@ -243,7 +243,7 @@ impl SourisDW {
     }
 
     pub async fn update(&self) -> Result<Vec<crate::deps::DepStatus>> {
-        self.deps.update_all().await
+        Ok(self.deps.update_all().await)
     }
 
     pub async fn update_check(&self) -> Result<Vec<crate::deps::DepStatus>> {

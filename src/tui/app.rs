@@ -252,12 +252,23 @@ impl AppState {
     }
 
     pub fn copy_error(&self) -> bool {
-        if let Some(msg) = &self.error_message {
-            if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                return clipboard.set_text(msg).is_ok();
+        let msg = match &self.error_message {
+            Some(m) => m,
+            None => return false,
+        };
+        match arboard::Clipboard::new() {
+            Ok(mut clipboard) => match clipboard.set_text(msg) {
+                Ok(_) => true,
+                Err(e) => {
+                    tracing::warn!("Failed to copy error to clipboard: {}", e);
+                    false
+                }
+            },
+            Err(e) => {
+                tracing::warn!("Failed to open clipboard: {}", e);
+                false
             }
         }
-        false
     }
 
     pub fn has_overlay(&self) -> bool {

@@ -6,16 +6,16 @@ pub mod yt_dlp;
 use crate::deps::deno::Deno;
 use crate::deps::ffmpeg::FFmpeg;
 use crate::deps::yt_dlp::YtDlp;
-use crate::error::Result;
 
 pub struct DepManager {
     yt_dlp: YtDlp,
     ffmpeg: FFmpeg,
     deno: Deno,
+    #[allow(dead_code)]
     auto_update: bool,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DepStatus {
     pub name: String,
     pub installed: bool,
@@ -24,10 +24,10 @@ pub struct DepStatus {
 }
 
 impl DepManager {
-    pub async fn new(auto_update: bool, channel: &str) -> Result<Self> {
-        let yt_dlp = YtDlp::ensure_installed(channel).await?;
-        let ffmpeg = FFmpeg::ensure_installed().await?;
-        let deno = Deno::ensure_installed().await?;
+    pub async fn new(auto_update: bool, channel: &str) -> Self {
+        let yt_dlp = YtDlp::ensure_installed(channel).await;
+        let ffmpeg = FFmpeg::ensure_installed().await;
+        let deno = Deno::ensure_installed().await;
 
         let manager = Self {
             yt_dlp,
@@ -37,14 +37,17 @@ impl DepManager {
         };
 
         if auto_update {
-            if let Some(updated) = manager.yt_dlp.update_if_needed().await? {
-                let mut m = manager;
-                m.yt_dlp = updated;
-                return Ok(m);
+            if let Some(updated) = manager.yt_dlp.update_if_needed().await {
+                return Self {
+                    yt_dlp: updated,
+                    ffmpeg: manager.ffmpeg,
+                    deno: manager.deno,
+                    auto_update,
+                };
             }
         }
 
-        Ok(manager)
+        manager
     }
 
     pub fn yt_dlp(&self) -> &YtDlp {
@@ -82,10 +85,10 @@ impl DepManager {
         ]
     }
 
-    pub async fn update_all(&self) -> Result<Vec<DepStatus>> {
+    pub async fn update_all(&self) -> Vec<DepStatus> {
         let mut results = Vec::new();
 
-        if let Some(updated) = self.yt_dlp.update_if_needed().await? {
+        if let Some(updated) = self.yt_dlp.update_if_needed().await {
             results.push(DepStatus {
                 name: "yt-dlp".into(),
                 installed: true,
@@ -101,7 +104,7 @@ impl DepManager {
             });
         }
 
-        self.ffmpeg.update().await?;
+        self.ffmpeg.update().await;
         results.push(DepStatus {
             name: "ffmpeg".into(),
             installed: self.ffmpeg.is_installed(),
@@ -109,7 +112,7 @@ impl DepManager {
             path: self.ffmpeg.binary_path().display().to_string(),
         });
 
-        self.deno.update().await?;
+        self.deno.update().await;
         results.push(DepStatus {
             name: "deno".into(),
             installed: self.deno.is_installed(),
@@ -117,6 +120,6 @@ impl DepManager {
             path: self.deno.binary_path().display().to_string(),
         });
 
-        Ok(results)
+        results
     }
 }

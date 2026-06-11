@@ -128,7 +128,7 @@ fn download_deno(os: &str, arch: &str, dest: &PathBuf) -> Result<(), Box<dyn std
         }
     }
 
-    Err(format!("deno binary not found in zip archive").into())
+    Err("deno binary not found in zip archive".into())
 }
 
 fn download_and_decompress_gz(url: &str, dest: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {

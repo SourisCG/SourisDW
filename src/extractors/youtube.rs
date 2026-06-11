@@ -9,9 +9,9 @@ pub struct YouTubeExtractor {
 }
 
 impl YouTubeExtractor {
-    pub async fn new() -> Result<Self> {
-        let yt_dlp = YtDlp::ensure_installed("stable").await?;
-        Ok(Self { yt_dlp })
+    pub async fn new() -> Self {
+        let yt_dlp = YtDlp::ensure_installed("stable").await;
+        Self { yt_dlp }
     }
 
     pub async fn extract_info(&self, url: &str) -> Result<MediaInfo> {

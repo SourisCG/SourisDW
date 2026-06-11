@@ -1,4 +1,4 @@
-use souris_dw::deps::{DepManager, DepStatus};
+use souris_dw::deps::DepStatus;
 
 #[test]
 fn test_dep_status_default_fields() {
