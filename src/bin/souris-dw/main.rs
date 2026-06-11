@@ -758,6 +758,9 @@ async fn handle_tui() -> Result<()> {
                         events::Action::DeleteChar => {
                             app.input_buffer.pop();
                         }
+                        events::Action::FocusNext | events::Action::FocusPrev => {
+                            app.waiting_for_quit = false;
+                        }
                     }
                 }
             }

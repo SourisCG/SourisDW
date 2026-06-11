@@ -17,6 +17,7 @@ pub trait Extractor: Send + Sync {
     async fn extract_playlist_info(&self, url: &str) -> Result<Vec<MediaInfo>>;
     async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchItem>>;
 
+    #[allow(clippy::too_many_arguments)]
     async fn download(
         &self,
         url: &str,
@@ -32,6 +33,7 @@ pub trait Extractor: Send + Sync {
         cookies_from_browser: Option<&str>,
     ) -> Result<DownloadResult>;
 
+    #[allow(clippy::too_many_arguments)]
     async fn download_playlist(
         &self,
         url: &str,

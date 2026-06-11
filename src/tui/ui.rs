@@ -9,6 +9,7 @@ use ratatui::Frame;
 const MIN_WIDTH: u16 = 60;
 const MIN_HEIGHT: u16 = 20;
 
+#[allow(dead_code)]
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
@@ -629,11 +630,11 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
             ),
         ]),
         Line::from(vec![
+            Span::styled("  h / ?", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
-                "  h / ?",
-                Style::default().fg(SYNTHWAVE84_THEME.highlight),
+                "     Help",
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
-            Span::styled("     Help", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
         ]),
         Line::from(vec![
             Span::styled(
