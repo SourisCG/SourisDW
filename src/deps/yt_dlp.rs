@@ -9,6 +9,7 @@ pub struct YtDlp {
     binary_path: PathBuf,
     version: Option<String>,
     channel: String,
+    deno_path: Option<PathBuf>,
 }
 
 impl YtDlp {
@@ -28,21 +29,38 @@ impl YtDlp {
         self.binary_path.exists()
     }
 
+    pub fn deno_path(&self) -> Option<&Path> {
+        self.deno_path.as_deref()
+    }
+
+    pub fn command(&self) -> tokio::process::Command {
+        Self::command_with(&self.binary_path, self.deno_path.as_deref())
+    }
+
+    pub fn command_with(path: &Path, deno: Option<&Path>) -> tokio::process::Command {
+        let mut cmd = tokio::process::Command::new(path);
+        if let Some(deno) = deno {
+            cmd.arg("--js-runtimes");
+            cmd.arg(format!("deno:{}", deno.display()));
+        }
+        cmd
+    }
+
     pub async fn ensure_installed(channel: &str) -> Result<Self> {
         let binary_name = platform::yt_dlp_binary_name();
+        let deno_name = platform::deno_binary_name();
 
-        if let Ok(system_path) = which::which(&binary_name) {
-            let version = Self::get_version(&system_path).await.ok();
-            return Ok(Self {
-                binary_path: system_path,
-                version,
-                channel: channel.to_string(),
-            });
-        }
-
-        let bin_dir = platform::bin_dir()
-            .unwrap_or_else(|| std::env::temp_dir().join("souris-dw").join("bin"));
-        let binary_path = bin_dir.join(&binary_name);
+        let (binary_path, deno_path) = if let Ok(system_path) = which::which(&binary_name) {
+            let system_deno = which::which(&deno_name).ok();
+            (system_path, system_deno)
+        } else {
+            let bin_dir = platform::bin_dir()
+                .unwrap_or_else(|| std::env::temp_dir().join("souris-dw").join("bin"));
+            let bp = bin_dir.join(&binary_name);
+            let dp = bin_dir.join(&deno_name);
+            let system_deno = which::which(&deno_name).ok();
+            (bp, if dp.exists() { Some(dp) } else { system_deno })
+        };
 
         if binary_path.exists() {
             let version = Self::get_version(&binary_path).await.ok();
@@ -50,17 +68,20 @@ impl YtDlp {
                 binary_path,
                 version,
                 channel: channel.to_string(),
+                deno_path,
             });
         }
 
-        Self::download(&bin_dir, channel).await
+        Self::download(&binary_path.parent().unwrap_or(Path::new(".")), channel).await
     }
 
     pub async fn download(bin_dir: &Path, channel: &str) -> Result<Self> {
         fs::ensure_dir(bin_dir)?;
 
         let binary_name = platform::yt_dlp_binary_name();
+        let deno_name = platform::deno_binary_name();
         let binary_path = bin_dir.join(&binary_name);
+        let deno_path = bin_dir.join(&deno_name);
         let url = platform::yt_dlp_download_url(channel);
 
         tracing::info!("Downloading yt-dlp (channel: {}) from: {}", channel, url);
@@ -111,12 +132,19 @@ impl YtDlp {
             }
         };
 
+        let dp = if deno_path.exists() {
+            Some(deno_path)
+        } else {
+            which::which(&deno_name).ok()
+        };
+
         tracing::info!("yt-dlp installed at: {}", binary_path.display());
 
         Ok(Self {
             binary_path,
             version,
             channel: channel.to_string(),
+            deno_path: dp,
         })
     }
 

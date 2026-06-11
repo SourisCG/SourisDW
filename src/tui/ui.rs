@@ -3,7 +3,7 @@ use crate::tui::theme::{format_duration, progress_bar, SYNTHWAVE84_THEME};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Frame;
 
 const MIN_WIDTH: u16 = 60;
@@ -42,6 +42,10 @@ pub fn draw(f: &mut Frame, app: &AppState) {
     draw_main_content(f, chunks[1], app);
     draw_footer(f, chunks[2], app);
     draw_status_bar(f, chunks[3], app);
+
+    if app.show_error_popup {
+        draw_error_overlay(f, app);
+    }
 
     if app.show_help {
         draw_help_overlay(f, app);
@@ -527,6 +531,70 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &AppState) {
     )]));
 
     f.render_widget(status_bar, area);
+}
+
+fn draw_error_overlay(f: &mut Frame, app: &AppState) {
+    let area = centered_rect(65, 50, f.area());
+
+    f.render_widget(Clear, area);
+
+    let error_text = match &app.error_message {
+        Some(msg) => {
+            let lines: Vec<Line> = msg
+                .lines()
+                .map(|l| {
+                    Line::from(vec![Span::styled(
+                        l,
+                        Style::default().fg(SYNTHWAVE84_THEME.foreground),
+                    )])
+                })
+                .collect();
+            lines
+        }
+        None => vec![Line::from(vec![Span::styled(
+            "No error details",
+            Style::default().fg(SYNTHWAVE84_THEME.subtitle),
+        )])],
+    };
+
+    let mut lines = vec![
+        Line::from(vec![Span::styled(
+            " Error",
+            Style::default()
+                .fg(SYNTHWAVE84_THEME.error)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+    ];
+    lines.extend(error_text);
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled(
+            " Ctrl+Shift+C",
+            Style::default().fg(SYNTHWAVE84_THEME.highlight),
+        ),
+        Span::styled(" Copy   ", Style::default().fg(SYNTHWAVE84_THEME.subtitle)),
+        Span::styled("Esc", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+        Span::styled(" Close", Style::default().fg(SYNTHWAVE84_THEME.subtitle)),
+    ]));
+
+    let error_block = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Error ")
+                .title_style(
+                    Style::default()
+                        .fg(SYNTHWAVE84_THEME.error)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(SYNTHWAVE84_THEME.error))
+                .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
+        )
+        .wrap(Wrap { trim: false })
+        .style(Style::default().bg(SYNTHWAVE84_THEME.background));
+
+    f.render_widget(error_block, area);
 }
 
 fn draw_help_overlay(f: &mut Frame, _app: &AppState) {

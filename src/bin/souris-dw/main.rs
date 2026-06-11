@@ -553,12 +553,15 @@ async fn handle_tui() -> Result<()> {
             e
         })?;
     let deps_status = check_dw.update_check().await?;
-    for dep in &deps_status {
-        if !dep.installed {
-            eprintln!("Error: {} no esta instalado en {}", dep.name, dep.path);
-            eprintln!("Ejecuta 'souris-dw update' para instalar dependencias.");
-            std::process::exit(1);
+    let missing_deps: Vec<_> = deps_status.iter().filter(|d| !d.installed).collect();
+    if !missing_deps.is_empty() {
+        let mut msg = String::from("Missing dependencies:\n");
+        for dep in &missing_deps {
+            msg.push_str(&format!("  - {} ({})\n", dep.name, dep.path));
         }
+        msg.push_str("\nRun 'souris-dw update' from CLI to install them.");
+        eprintln!("{}", msg);
+        eprintln!("The TUI will start with limited functionality.");
     }
 
     enable_raw_mode()?;
@@ -580,7 +583,10 @@ async fn handle_tui() -> Result<()> {
                 if let Some(action) = action {
                     match action {
                         events::Action::Back => {
-                            if app.show_help {
+                            if app.show_error_popup {
+                                app.clear_error();
+                                app.waiting_for_quit = false;
+                            } else if app.show_help {
                                 app.show_help = false;
                                 app.waiting_for_quit = false;
                             } else if app.show_settings {
@@ -619,6 +625,13 @@ async fn handle_tui() -> Result<()> {
                                 app.status_message = Some("URL copied to clipboard".into());
                             } else {
                                 app.status_message = Some("Failed to copy URL".into());
+                            }
+                        }
+                        events::Action::CopyError => {
+                            if app.copy_error() {
+                                app.status_message = Some("Error copied to clipboard".into());
+                            } else {
+                                app.status_message = Some("Failed to copy error".into());
                             }
                         }
                         events::Action::MoveDown => {

@@ -7,10 +7,12 @@ pub struct AppState {
     pub show_help: bool,
     pub show_settings: bool,
     pub show_search: bool,
+    pub show_error_popup: bool,
     pub input_mode: InputMode,
     pub input_buffer: String,
     pub search_results: Vec<SearchResult>,
     pub status_message: Option<String>,
+    pub error_message: Option<String>,
     pub config: AppConfigState,
     pub waiting_for_quit: bool,
     pub settings_index: usize,
@@ -78,6 +80,7 @@ pub const SETTINGS_OPTIONS: &[&str] = &[
     "Audio Only",
     "Audio Format",
     "Auto Update",
+    "Update Deps",
 ];
 
 impl Default for AppState {
@@ -97,7 +100,9 @@ impl AppState {
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             search_results: Vec::new(),
+            show_error_popup: false,
             status_message: None,
+            error_message: None,
             config: AppConfigState::default(),
             waiting_for_quit: false,
             settings_index: 0,
@@ -236,11 +241,33 @@ impl AppState {
         }
     }
 
+    pub fn set_error(&mut self, msg: String) {
+        self.error_message = Some(msg);
+        self.show_error_popup = true;
+    }
+
+    pub fn clear_error(&mut self) {
+        self.error_message = None;
+        self.show_error_popup = false;
+    }
+
+    pub fn copy_error(&self) -> bool {
+        if let Some(msg) = &self.error_message {
+            if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                return clipboard.set_text(msg).is_ok();
+            }
+        }
+        false
+    }
+
     pub fn has_overlay(&self) -> bool {
-        self.show_help || self.show_search || self.show_settings
+        self.show_help || self.show_search || self.show_settings || self.show_error_popup
     }
 
     pub fn close_overlay(&mut self) {
+        if self.show_error_popup {
+            self.clear_error();
+        }
         self.show_help = false;
         self.show_search = false;
         self.show_settings = false;
@@ -328,6 +355,7 @@ impl AppState {
             6 => self.config.audio_only.to_string(),
             7 => self.config.audio_format.clone(),
             8 => self.config.auto_update.to_string(),
+            9 => "Press Enter".to_string(),
             _ => String::new(),
         }
     }
@@ -370,6 +398,10 @@ impl AppState {
                 self.config.audio_format = formats[(current + 1) % formats.len()].to_string();
             }
             8 => self.config.auto_update = !self.config.auto_update,
+            9 => {
+                self.status_message =
+                    Some("Run 'souris-dw update' from CLI to update all deps".into())
+            }
             _ => {}
         }
     }

@@ -34,7 +34,11 @@ pub fn handle_key_event(key: KeyEvent, mode: &InputMode) -> Option<Action> {
 fn handle_normal_key(key: KeyEvent) -> Option<Action> {
     match key.code {
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            Some(Action::ForceQuit)
+            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                Some(Action::CopyError)
+            } else {
+                Some(Action::ForceQuit)
+            }
         }
         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Search),
         KeyCode::Char('/') => Some(Action::Search),
@@ -87,6 +91,7 @@ pub enum Action {
     Help,
     Settings,
     CopyUrl,
+    CopyError,
     MoveDown,
     MoveUp,
     MoveFirst,

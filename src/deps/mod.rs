@@ -1,7 +1,9 @@
+pub mod deno;
 pub mod ffmpeg;
 pub mod platform;
 pub mod yt_dlp;
 
+use crate::deps::deno::Deno;
 use crate::deps::ffmpeg::FFmpeg;
 use crate::deps::yt_dlp::YtDlp;
 use crate::error::Result;
@@ -9,7 +11,7 @@ use crate::error::Result;
 pub struct DepManager {
     yt_dlp: YtDlp,
     ffmpeg: FFmpeg,
-    #[allow(dead_code)]
+    deno: Deno,
     auto_update: bool,
 }
 
@@ -25,10 +27,12 @@ impl DepManager {
     pub async fn new(auto_update: bool, channel: &str) -> Result<Self> {
         let yt_dlp = YtDlp::ensure_installed(channel).await?;
         let ffmpeg = FFmpeg::ensure_installed().await?;
+        let deno = Deno::ensure_installed().await?;
 
         let manager = Self {
             yt_dlp,
             ffmpeg,
+            deno,
             auto_update,
         };
 
@@ -51,6 +55,10 @@ impl DepManager {
         &self.ffmpeg
     }
 
+    pub fn deno(&self) -> &Deno {
+        &self.deno
+    }
+
     pub fn status(&self) -> Vec<DepStatus> {
         vec![
             DepStatus {
@@ -64,6 +72,12 @@ impl DepManager {
                 installed: self.ffmpeg.is_installed(),
                 version: self.ffmpeg.version().map(|s| s.to_string()),
                 path: self.ffmpeg.binary_path().display().to_string(),
+            },
+            DepStatus {
+                name: "deno".into(),
+                installed: self.deno.is_installed(),
+                version: self.deno.version().map(|s| s.to_string()),
+                path: self.deno.binary_path().display().to_string(),
             },
         ]
     }
@@ -87,13 +101,20 @@ impl DepManager {
             });
         }
 
-        // Also update ffmpeg
         self.ffmpeg.update().await?;
         results.push(DepStatus {
             name: "ffmpeg".into(),
             installed: self.ffmpeg.is_installed(),
             version: self.ffmpeg.version().map(|s| s.to_string()),
             path: self.ffmpeg.binary_path().display().to_string(),
+        });
+
+        self.deno.update().await?;
+        results.push(DepStatus {
+            name: "deno".into(),
+            installed: self.deno.is_installed(),
+            version: self.deno.version().map(|s| s.to_string()),
+            path: self.deno.binary_path().display().to_string(),
         });
 
         Ok(results)

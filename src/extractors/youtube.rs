@@ -15,7 +15,9 @@ impl YouTubeExtractor {
     }
 
     pub async fn extract_info(&self, url: &str) -> Result<MediaInfo> {
-        let output = tokio::process::Command::new(self.yt_dlp.binary_path())
+        let output = self
+            .yt_dlp
+            .command()
             .args(["--dump-json", "--no-download", url])
             .output()
             .await
@@ -35,7 +37,9 @@ impl YouTubeExtractor {
     }
 
     pub async fn extract_playlist_info(&self, url: &str) -> Result<Vec<MediaInfo>> {
-        let output = tokio::process::Command::new(self.yt_dlp.binary_path())
+        let output = self
+            .yt_dlp
+            .command()
             .args(["--dump-json", "--flat-playlist", "--no-download", url])
             .output()
             .await
@@ -64,7 +68,9 @@ impl YouTubeExtractor {
 
     pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchItem>> {
         let search_query = format!("ytsearch{}:{}", limit, query);
-        let output = tokio::process::Command::new(self.yt_dlp.binary_path())
+        let output = self
+            .yt_dlp
+            .command()
             .args([
                 "--dump-json",
                 "--flat-playlist",
@@ -131,7 +137,7 @@ impl YouTubeExtractor {
         cookies_file: Option<&str>,
         cookies_from_browser: Option<&str>,
     ) -> Result<DownloadResult> {
-        let mut cmd = tokio::process::Command::new(self.yt_dlp.binary_path());
+        let mut cmd = self.yt_dlp.command();
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
@@ -300,6 +306,7 @@ impl YouTubeExtractor {
         for item in items {
             let permit = semaphore.clone().acquire_owned().await.unwrap();
             let yt_dlp = self.yt_dlp.binary_path().to_path_buf();
+            let deno = self.yt_dlp.deno_path().map(|p| p.to_path_buf());
             let item_url = format!("https://youtube.com/watch?v={}", item.id);
             let format = format.cloned();
             let quality = quality.cloned();
@@ -311,6 +318,7 @@ impl YouTubeExtractor {
             handles.push(tokio::spawn(async move {
                 let result = Self::download_single(
                     &yt_dlp,
+                    deno.as_deref(),
                     &item_url,
                     format.as_ref(),
                     quality.as_ref(),
@@ -347,6 +355,7 @@ impl YouTubeExtractor {
     #[allow(clippy::too_many_arguments)]
     async fn download_single(
         yt_dlp_path: &std::path::Path,
+        deno_path: Option<&std::path::Path>,
         url: &str,
         format: Option<&Format>,
         quality: Option<&Quality>,
@@ -358,7 +367,7 @@ impl YouTubeExtractor {
         cookies_file: Option<&str>,
         cookies_from_browser: Option<&str>,
     ) -> Result<DownloadResult> {
-        let mut cmd = tokio::process::Command::new(yt_dlp_path);
+        let mut cmd = YtDlp::command_with(yt_dlp_path, deno_path);
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
