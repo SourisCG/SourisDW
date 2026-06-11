@@ -557,14 +557,20 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
             ),
         ]),
         Line::from(vec![
-            Span::styled("  g / Home", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+            Span::styled(
+                "  g / Home",
+                Style::default().fg(SYNTHWAVE84_THEME.highlight),
+            ),
             Span::styled(
                 "   Go to first",
                 Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  G / End", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+            Span::styled(
+                "  G / End",
+                Style::default().fg(SYNTHWAVE84_THEME.highlight),
+            ),
             Span::styled(
                 "    Go to last",
                 Style::default().fg(SYNTHWAVE84_THEME.foreground),

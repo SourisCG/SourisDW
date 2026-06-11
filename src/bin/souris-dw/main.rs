@@ -677,7 +677,7 @@ async fn handle_tui() -> Result<()> {
                                 tokio::spawn(async move {
                                     let result = async {
                                         let builder = souris_dw::SourisDW::builder()
-                                            .auto_update(false)
+                                            .auto_update(true)
                                             .yt_dlp_channel("stable")
                                             .spotify_credentials(
                                                 std::env::var("SOURIS_SPOTIFY_CLIENT_ID")

@@ -79,6 +79,9 @@ jobs:
       - name: Test in CentOS 7 container
         run: |
           docker run --rm -v $PWD:/src centos:7 bash -c "
+            sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo &&
+            sed -i 's/^mirrorlist/#mirrorlist/' /etc/yum.repos.d/*.repo &&
+            sed -i 's/^#baseurl/baseurl/' /etc/yum.repos.d/*.repo &&
             yum install -y git gcc &&
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y &&
             source \$HOME/.cargo/env &&
