@@ -133,7 +133,7 @@ pub fn yt_dlp_release_filename() -> &'static str {
 
 pub fn yt_dlp_download_url(version: &str) -> String {
     let release_path = if version == "latest" || version == "stable" {
-        "latest".to_string()
+        "latest/download".to_string()
     } else {
         format!("download/{}", version)
     };

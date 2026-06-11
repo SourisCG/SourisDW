@@ -426,9 +426,9 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
                     Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
                 Span::styled(
-            "\u{2588}",
-            Style::default().fg(SYNTHWAVE84_THEME.foreground),
-        ),
+                    "\u{2588}",
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
+                ),
             ]),
         ),
         InputMode::Search => (
@@ -440,9 +440,9 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
                     Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
                 Span::styled(
-            "\u{2588}",
-            Style::default().fg(SYNTHWAVE84_THEME.foreground),
-        ),
+                    "\u{2588}",
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
+                ),
             ]),
         ),
     };
@@ -543,7 +543,10 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(vec![
-            Span::styled("  j / Down", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+            Span::styled(
+                "  j / Down",
+                Style::default().fg(SYNTHWAVE84_THEME.highlight),
+            ),
             Span::styled(
                 "     Move down",
                 Style::default().fg(SYNTHWAVE84_THEME.foreground),
