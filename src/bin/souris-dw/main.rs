@@ -509,27 +509,29 @@ async fn handle_uninstall(keep_config: bool, json: bool) -> Result<()> {
 }
 
 #[allow(dead_code)]
-enum TuiDownloadEvent {
-    Started {
+enum TuiEvent {
+    DownloadStarted {
         index: usize,
         title: String,
         platform: String,
     },
-    Progress {
+    DownloadProgress {
         index: usize,
         percent: f64,
         speed: String,
         eta: String,
     },
-    Complete {
+    DownloadComplete {
         index: usize,
         path: String,
         size: u64,
     },
-    Error {
+    DownloadError {
         index: usize,
         message: String,
     },
+    SearchResults(Vec<souris_dw::core::types::SearchItem>),
+    SearchError(String),
 }
 
 async fn handle_tui() -> Result<()> {
@@ -539,7 +541,7 @@ async fn handle_tui() -> Result<()> {
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     };
     use ratatui::prelude::*;
-    use souris_dw::tui::{app::AppState, events, ui};
+    use souris_dw::tui::{app::{AppState, SETTINGS_OPTIONS}, events, ui};
 
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -549,7 +551,7 @@ async fn handle_tui() -> Result<()> {
 
     let mut app = AppState::new();
     let tick_rate = std::time::Duration::from_millis(100);
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<TuiDownloadEvent>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<TuiEvent>();
 
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
@@ -615,7 +617,11 @@ async fn handle_tui() -> Result<()> {
                             app.waiting_for_quit = false;
                         }
                         events::Action::MoveDown => {
-                            if app.show_search {
+                            if app.show_settings {
+                                if app.settings_index < SETTINGS_OPTIONS.len().saturating_sub(1) {
+                                    app.settings_index += 1;
+                                }
+                            } else if app.show_search {
                                 if app.search_index < app.search_results.len().saturating_sub(1) {
                                     app.search_index += 1;
                                 }
@@ -625,7 +631,11 @@ async fn handle_tui() -> Result<()> {
                             app.waiting_for_quit = false;
                         }
                         events::Action::MoveUp => {
-                            if app.show_search {
+                            if app.show_settings {
+                                if app.settings_index > 0 {
+                                    app.settings_index -= 1;
+                                }
+                            } else if app.show_search {
                                 if app.search_index > 0 {
                                     app.search_index -= 1;
                                 }
@@ -635,20 +645,129 @@ async fn handle_tui() -> Result<()> {
                             app.waiting_for_quit = false;
                         }
                         events::Action::MoveFirst => {
-                            app.selected_index = 0;
+                            if app.show_settings {
+                                app.settings_index = 0;
+                            } else {
+                                app.selected_index = 0;
+                            }
                             app.waiting_for_quit = false;
                         }
                         events::Action::MoveLast => {
-                            app.selected_index = app.downloads.len().saturating_sub(1);
+                            if app.show_settings {
+                                app.settings_index = SETTINGS_OPTIONS.len().saturating_sub(1);
+                            } else {
+                                app.selected_index = app.downloads.len().saturating_sub(1);
+                            }
                             app.waiting_for_quit = false;
                         }
                         events::Action::Confirm => {
                             if app.show_settings {
                                 app.cycle_setting_value(app.settings_index);
+                            } else if app.show_search && !app.search_results.is_empty() {
+                                if let Some(result) = app.search_results.get(app.search_index).cloned() {
+                                    let title = result.title.clone();
+                                    let url = result.url.clone();
+                                    let platform = result.platform.clone();
+                                    let index = app.add_download(url.clone(), title, platform.clone());
+                                    app.toggle_search();
+                                    app.status_message = Some("Starting download...".into());
+
+                                    let tx = tx.clone();
+                                    let audio_only = app.config.audio_only;
+                                    let audio_format = app.config.audio_format.clone();
+                                    let default_format = app.config.default_format.clone();
+                                    let default_quality = app.config.default_quality.clone();
+                                    let output_dir = app.config.output_dir.clone();
+                                    let embed_metadata = app.config.embed_metadata;
+                                    let embed_thumbnail = app.config.embed_thumbnail;
+                                    let embed_subtitles = false;
+
+                                    tokio::spawn(async move {
+                                        let result = async {
+                                            let builder = souris_dw::SourisDW::builder()
+                                                .auto_update(true)
+                                                .yt_dlp_channel("stable")
+                                                .spotify_credentials(
+                                                    std::env::var("SOURIS_SPOTIFY_CLIENT_ID")
+                                                        .unwrap_or_default(),
+                                                    std::env::var("SOURIS_SPOTIFY_CLIENT_SECRET")
+                                                        .unwrap_or_default(),
+                                                );
+                                            let dw = builder.build().await;
+
+                                            let _ = tx.send(TuiEvent::DownloadStarted {
+                                                index,
+                                                title: url.clone(),
+                                                platform: platform.clone(),
+                                            });
+
+                                            let mut req = if audio_only {
+                                                dw.download_audio(&url)
+                                            } else {
+                                                dw.download(&url)
+                                            };
+
+                                            req = req
+                                                .output(output_dir)
+                                                .embed_metadata(embed_metadata)
+                                                .embed_thumbnail(embed_thumbnail)
+                                                .embed_subtitles(embed_subtitles);
+
+                                            if audio_only {
+                                                req = req.format_str(&audio_format)?;
+                                            } else {
+                                                req = req.format_str(&default_format)?;
+                                                req = req.quality_str(&default_quality)?;
+                                            }
+
+                                            req.run().await
+                                        }
+                                        .await;
+
+                                        match result {
+                                            Ok(res) => {
+                                                let _ = tx.send(TuiEvent::DownloadComplete {
+                                                    index,
+                                                    path: res.path.unwrap_or_default(),
+                                                    size: res.size.unwrap_or(0),
+                                                });
+                                            }
+                                            Err(e) => {
+                                                let _ = tx.send(TuiEvent::DownloadError {
+                                                    index,
+                                                    message: e.to_string(),
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
                             } else if app.show_search && !app.input_buffer.is_empty() {
                                 let query = app.input_buffer.clone();
                                 app.status_message = Some(format!("Searching: {}", query));
+
+                                let tx = tx.clone();
+                                let input_buf = app.input_buffer.clone();
                                 app.input_buffer.clear();
+                                app.search_results.clear();
+
+                                tokio::spawn(async move {
+                                    let result = async {
+                                        let builder = souris_dw::SourisDW::builder()
+                                            .auto_update(true)
+                                            .build().await;
+                                        builder.search(&input_buf).await
+                                    }
+                                    .await;
+
+                                    match result {
+                                        Ok(results) => {
+                                            let _ = tx.send(TuiEvent::SearchResults(results));
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(TuiEvent::SearchError(e.to_string()));
+                                        }
+                                    }
+                                });
                             } else if !app.input_buffer.is_empty() {
                                 let url = app.input_buffer.clone();
                                 let index = app.add_download(
@@ -662,6 +781,8 @@ async fn handle_tui() -> Result<()> {
                                 let tx = tx.clone();
                                 let audio_only = app.config.audio_only;
                                 let audio_format = app.config.audio_format.clone();
+                                let default_format = app.config.default_format.clone();
+                                let default_quality = app.config.default_quality.clone();
                                 let output_dir = app.config.output_dir.clone();
                                 let embed_metadata = app.config.embed_metadata;
                                 let embed_thumbnail = app.config.embed_thumbnail;
@@ -680,7 +801,7 @@ async fn handle_tui() -> Result<()> {
                                             );
                                         let dw = builder.build().await;
 
-                                        let _ = tx.send(TuiDownloadEvent::Started {
+                                        let _ = tx.send(TuiEvent::DownloadStarted {
                                             index,
                                             title: url.clone(),
                                             platform: "YouTube".into(),
@@ -700,6 +821,9 @@ async fn handle_tui() -> Result<()> {
 
                                         if audio_only {
                                             req = req.format_str(&audio_format)?;
+                                        } else {
+                                            req = req.format_str(&default_format)?;
+                                            req = req.quality_str(&default_quality)?;
                                         }
 
                                         req.run().await
@@ -708,14 +832,14 @@ async fn handle_tui() -> Result<()> {
 
                                     match result {
                                         Ok(res) => {
-                                            let _ = tx.send(TuiDownloadEvent::Complete {
+                                            let _ = tx.send(TuiEvent::DownloadComplete {
                                                 index,
                                                 path: res.path.unwrap_or_default(),
                                                 size: res.size.unwrap_or(0),
                                             });
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(TuiDownloadEvent::Error {
+                                            let _ = tx.send(TuiEvent::DownloadError {
                                                 index,
                                                 message: e.to_string(),
                                             });
@@ -754,7 +878,7 @@ async fn handle_tui() -> Result<()> {
             Some(events::AppEvent::Tick) => {
                 while let Ok(event) = rx.try_recv() {
                     match event {
-                        TuiDownloadEvent::Started {
+                        TuiEvent::DownloadStarted {
                             index,
                             title,
                             platform,
@@ -765,7 +889,7 @@ async fn handle_tui() -> Result<()> {
                                 dl.status = souris_dw::tui::app::DownloadStatus::Downloading;
                             }
                         }
-                        TuiDownloadEvent::Progress {
+                        TuiEvent::DownloadProgress {
                             index,
                             percent,
                             speed,
@@ -778,7 +902,7 @@ async fn handle_tui() -> Result<()> {
                                 dl.status = souris_dw::tui::app::DownloadStatus::Downloading;
                             }
                         }
-                        TuiDownloadEvent::Complete { index, path, size } => {
+                        TuiEvent::DownloadComplete { index, path, size } => {
                             if let Some(dl) = app.downloads.get_mut(index) {
                                 dl.status = souris_dw::tui::app::DownloadStatus::Complete;
                                 dl.progress = 100.0;
@@ -787,10 +911,26 @@ async fn handle_tui() -> Result<()> {
                             }
                             app.status_message = Some("Download complete".into());
                         }
-                        TuiDownloadEvent::Error { index, message } => {
+                        TuiEvent::DownloadError { index, message } => {
                             if let Some(dl) = app.downloads.get_mut(index) {
                                 dl.status = souris_dw::tui::app::DownloadStatus::Error(message);
                             }
+                        }
+                        TuiEvent::SearchResults(results) => {
+                            app.search_results = results.into_iter().map(|r| {
+                                souris_dw::tui::app::SearchResult {
+                                    title: r.title,
+                                    url: r.url,
+                                    platform: r.platform,
+                                    duration: r.duration,
+                                    selected: false,
+                                }
+                            }).collect();
+                            app.search_index = 0;
+                            app.status_message = Some(format!("Found {} results", app.search_results.len()));
+                        }
+                        TuiEvent::SearchError(msg) => {
+                            app.status_message = Some(format!("Search failed: {}", msg));
                         }
                     }
                 }

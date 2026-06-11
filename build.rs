@@ -5,17 +5,19 @@ use std::path::PathBuf;
 
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    let is_musl = target_env == "musl";
+
     let ffmpeg_path = out_dir.join("ffmpeg_bin");
-
     if !ffmpeg_path.exists() {
-        let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-        let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
-
         println!(
             "cargo:warning=Downloading ffmpeg for {} {}...",
             target_os, target_arch
         );
 
+        // ffmpeg-static is always musl-linked, works on any Linux
         match download_ffmpeg(&target_os, &target_arch, &ffmpeg_path) {
             Ok(_) => println!("cargo:warning=ffmpeg downloaded successfully"),
             Err(e) => {
@@ -33,23 +35,26 @@ fn main() {
 
     let deno_path = out_dir.join("deno_bin");
     if !deno_path.exists() {
-        let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-        let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+        if is_musl {
+            // deno does not provide musl builds; download at runtime instead
+            println!("cargo:warning=Skipping deno download for musl target. Deno will be downloaded at runtime.");
+            let _ = fs::write(&deno_path, b"");
+        } else {
+            println!(
+                "cargo:warning=Downloading deno for {} {}...",
+                target_os, target_arch
+            );
 
-        println!(
-            "cargo:warning=Downloading deno for {} {}...",
-            target_os, target_arch
-        );
-
-        match download_deno(&target_os, &target_arch, &deno_path) {
-            Ok(_) => println!("cargo:warning=deno downloaded successfully"),
-            Err(e) => {
-                println!(
-                    "cargo:warning=Failed to download deno: {}. \
-                     Deno will be downloaded at runtime.",
-                    e
-                );
-                let _ = fs::write(&deno_path, b"");
+            match download_deno(&target_os, &target_arch, &deno_path) {
+                Ok(_) => println!("cargo:warning=deno downloaded successfully"),
+                Err(e) => {
+                    println!(
+                        "cargo:warning=Failed to download deno: {}. \
+                         Deno will be downloaded at runtime.",
+                        e
+                    );
+                    let _ = fs::write(&deno_path, b"");
+                }
             }
         }
     }
