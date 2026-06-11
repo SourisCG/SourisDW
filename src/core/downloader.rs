@@ -260,8 +260,14 @@ impl SourisDW {
             .unwrap_or_else(|| self.default_output.display().to_string());
 
         let ffmpeg_path = self.deps.ffmpeg().binary_path().to_path_buf();
-        let cookies_file = req.cookies_file.clone().or_else(|| self.cookies_file.clone());
-        let cookies_from_browser = req.cookies_from_browser.clone().or_else(|| self.cookies_from_browser.clone());
+        let cookies_file = req
+            .cookies_file
+            .clone()
+            .or_else(|| self.cookies_file.clone());
+        let cookies_from_browser = req
+            .cookies_from_browser
+            .clone()
+            .or_else(|| self.cookies_from_browser.clone());
 
         self.resolver
             .resolve_download(

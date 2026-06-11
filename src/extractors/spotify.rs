@@ -241,7 +241,10 @@ impl SpotifyExtractor {
                 reason: "No access_token in response".into(),
             })?;
 
-        *self.token_cache.lock().unwrap() = Some((token.clone(), Instant::now() + Duration::from_secs(TOKEN_TTL)));
+        *self.token_cache.lock().unwrap() = Some((
+            token.clone(),
+            Instant::now() + Duration::from_secs(TOKEN_TTL),
+        ));
 
         Ok(token)
     }

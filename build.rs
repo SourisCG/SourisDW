@@ -60,10 +60,7 @@ fn download_ffmpeg(os: &str, arch: &str, dest: &PathBuf) -> Result<(), Box<dyn s
     download_and_decompress(url, dest)
 }
 
-fn download_and_decompress(
-    url: &str,
-    dest: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn download_and_decompress(url: &str, dest: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let temp_gz = dest.with_extension("gz");
 
     let client = reqwest::blocking::Client::builder()

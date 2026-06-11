@@ -72,14 +72,15 @@ impl YtDlp {
                 name: "yt-dlp".into(),
                 reason: e.to_string(),
             })?;
-        let response = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| SourisError::DependencyDownloadFailed {
-                name: "yt-dlp".into(),
-                reason: e.to_string(),
-            })?;
+        let response =
+            client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| SourisError::DependencyDownloadFailed {
+                    name: "yt-dlp".into(),
+                    reason: e.to_string(),
+                })?;
 
         if !response.status().is_success() {
             return Err(SourisError::DependencyDownloadFailed {
@@ -175,8 +176,7 @@ impl YtDlp {
     }
 
     async fn get_latest_version() -> Result<String> {
-        let cache_dir = platform::cache_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        let cache_dir = platform::cache_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
         let cache_file = cache_dir.join("yt-dlp-version.txt");
 
         if let Ok(content) = fs_err::read_to_string(&cache_file) {
@@ -202,14 +202,15 @@ impl YtDlp {
                 name: "yt-dlp".into(),
                 reason: e.to_string(),
             })?;
-        let response = client
-            .get(url)
-            .send()
-            .await
-            .map_err(|e| SourisError::DependencyUpdateFailed {
-                name: "yt-dlp".into(),
-                reason: e.to_string(),
-            })?;
+        let response =
+            client
+                .get(url)
+                .send()
+                .await
+                .map_err(|e| SourisError::DependencyUpdateFailed {
+                    name: "yt-dlp".into(),
+                    reason: e.to_string(),
+                })?;
 
         let json: serde_json::Value =
             response

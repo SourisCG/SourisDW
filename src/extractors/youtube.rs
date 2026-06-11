@@ -222,10 +222,12 @@ impl YouTubeExtractor {
                     }
                 }
                 Format::Video(_) => {
-                    let h = quality.and_then(|q| match q {
-                        Quality::Video(v) => Some(height_value(v)),
-                        _ => None,
-                    }).unwrap_or("1080");
+                    let h = quality
+                        .and_then(|q| match q {
+                            Quality::Video(v) => Some(height_value(v)),
+                            _ => None,
+                        })
+                        .unwrap_or("1080");
                     format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
                 }
             };
