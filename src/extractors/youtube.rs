@@ -20,7 +20,7 @@ impl YouTubeExtractor {
                 "--dump-json",
                 "--no-download",
                 "--extractor-args",
-                "youtube:player_js_version=actual",
+                "youtube:player_client=ios,android",
                 url,
             ])
             .output()
@@ -47,7 +47,7 @@ impl YouTubeExtractor {
                 "--flat-playlist",
                 "--no-download",
                 "--extractor-args",
-                "youtube:player_js_version=actual",
+                "youtube:player_client=ios,android",
                 url,
             ])
             .output()
@@ -83,7 +83,7 @@ impl YouTubeExtractor {
                 "--flat-playlist",
                 "--no-download",
                 "--extractor-args",
-                "youtube:player_js_version=actual",
+                "youtube:player_client=ios,android",
                 &search_query,
             ])
             .output()
@@ -150,7 +150,7 @@ impl YouTubeExtractor {
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
-        cmd.args(["--extractor-args", "youtube:player_js_version=actual"]);
+        cmd.args(["--extractor-args", "youtube:player_client=ios,android"]);
 
         if let Some(ffmpeg) = ffmpeg_path {
             cmd.arg("--ffmpeg-location");
@@ -376,7 +376,7 @@ impl YouTubeExtractor {
 
         cmd.arg("--newline");
         cmd.arg("--no-color");
-        cmd.args(["--extractor-args", "youtube:player_js_version=actual"]);
+        cmd.args(["--extractor-args", "youtube:player_client=ios,android"]);
 
         if let Some(ffmpeg) = ffmpeg_path {
             cmd.arg("--ffmpeg-location");

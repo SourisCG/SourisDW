@@ -3,6 +3,8 @@ use crate::error::{Result, SourisError};
 use crate::utils::fs;
 use std::path::{Path, PathBuf};
 
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
 pub struct YtDlp {
     binary_path: PathBuf,
     version: Option<String>,
@@ -27,9 +29,19 @@ impl YtDlp {
     }
 
     pub async fn ensure_installed(channel: &str) -> Result<Self> {
-        let bin_dir = platform::bin_dir()
-            .ok_or_else(|| SourisError::ConfigError("Cannot determine bin directory".into()))?;
         let binary_name = platform::yt_dlp_binary_name();
+
+        if let Ok(system_path) = which::which(&binary_name) {
+            let version = Self::get_version(&system_path).await.ok();
+            return Ok(Self {
+                binary_path: system_path,
+                version,
+                channel: channel.to_string(),
+            });
+        }
+
+        let bin_dir = platform::bin_dir()
+            .unwrap_or_else(|| std::env::temp_dir().join("souris-dw").join("bin"));
         let binary_path = bin_dir.join(&binary_name);
 
         if binary_path.exists() {
@@ -54,7 +66,7 @@ impl YtDlp {
         tracing::info!("Downloading yt-dlp (channel: {}) from: {}", channel, url);
 
         let client = reqwest::Client::builder()
-            .user_agent("SourisDW/0.2.0")
+            .user_agent(USER_AGENT)
             .build()
             .map_err(|e| SourisError::DependencyDownloadFailed {
                 name: "yt-dlp".into(),
@@ -87,7 +99,16 @@ impl YtDlp {
         fs_err::write(&binary_path, &bytes).map_err(|e| SourisError::io(&binary_path, e))?;
         fs::set_executable(&binary_path)?;
 
-        let version = Self::get_version(&binary_path).await.ok();
+        let version = match Self::get_version(&binary_path).await {
+            Ok(v) => Some(v),
+            Err(_) => {
+                let _ = fs_err::remove_file(&binary_path);
+                return Err(SourisError::DependencyDownloadFailed {
+                    name: "yt-dlp".into(),
+                    reason: "Downloaded binary is corrupted or invalid".into(),
+                });
+            }
+        };
 
         tracing::info!("yt-dlp installed at: {}", binary_path.display());
 
@@ -100,28 +121,39 @@ impl YtDlp {
 
     pub async fn update_if_needed(&self) -> Result<Option<Self>> {
         if !self.is_installed() {
-            return Ok(Some(Self::ensure_installed(&self.channel).await?));
-        }
-
-        match self.version.as_deref() {
-            Some(_) => {
-                let latest = Self::get_latest_version().await?;
-                let needs_update = match &self.version {
-                    Some(current) => current != &latest,
-                    None => true,
-                };
-
-                if needs_update {
-                    tracing::info!("Updating yt-dlp: {:?} -> {}", self.version, latest);
-                    let bin_dir = self.binary_path.parent().unwrap();
-                    Ok(Some(Self::download(bin_dir, &self.channel).await?))
-                } else {
+            return match Self::ensure_installed(&self.channel).await {
+                Ok(yt) => Ok(Some(yt)),
+                Err(e) => {
+                    tracing::warn!("Failed to install yt-dlp: {}", e);
                     Ok(None)
                 }
+            };
+        }
+
+        let latest = match Self::get_latest_version().await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("Failed to check latest yt-dlp version: {}", e);
+                return Ok(None);
             }
-            None => {
-                let bin_dir = self.binary_path.parent().unwrap();
-                Ok(Some(Self::download(bin_dir, &self.channel).await?))
+        };
+
+        let needs_update = match &self.version {
+            Some(current) => current.trim_start_matches('v') != latest.trim_start_matches('v'),
+            None => true,
+        };
+
+        if !needs_update {
+            return Ok(None);
+        }
+
+        tracing::info!("Updating yt-dlp: {:?} -> {}", self.version, latest);
+        let bin_dir = self.binary_path.parent().unwrap();
+        match Self::download(bin_dir, &self.channel).await {
+            Ok(updated) => Ok(Some(updated)),
+            Err(e) => {
+                tracing::warn!("Failed to update yt-dlp: {}", e);
+                Ok(None)
             }
         }
     }
@@ -164,7 +196,7 @@ impl YtDlp {
 
         let url = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest";
         let client = reqwest::Client::builder()
-            .user_agent("SourisDW/0.2.0")
+            .user_agent(USER_AGENT)
             .build()
             .map_err(|e| SourisError::DependencyUpdateFailed {
                 name: "yt-dlp".into(),

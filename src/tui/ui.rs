@@ -335,7 +335,10 @@ fn draw_selected_details(f: &mut Frame, area: Rect, app: &AppState) {
             ]),
             Line::from(vec![
                 Span::styled("  Platform ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
-                Span::styled(&dl.platform, Style::default().fg(SYNTHWAVE84_THEME.foreground)),
+                Span::styled(
+                    &dl.platform,
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("  Status   ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
@@ -407,7 +410,10 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
                         .fg(SYNTHWAVE84_THEME.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" add URL  ", Style::default().fg(SYNTHWAVE84_THEME.subtitle)),
+                Span::styled(
+                    " add URL  ",
+                    Style::default().fg(SYNTHWAVE84_THEME.subtitle),
+                ),
                 Span::styled(
                     "Ctrl+F",
                     Style::default()

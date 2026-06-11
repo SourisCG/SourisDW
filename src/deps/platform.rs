@@ -96,7 +96,11 @@ pub fn cache_dir() -> Option<PathBuf> {
 }
 
 pub fn bin_dir() -> Option<PathBuf> {
-    data_dir().map(|d| d.join("bin"))
+    Some(
+        data_dir()
+            .map(|d| d.join("bin"))
+            .unwrap_or_else(|| std::env::temp_dir().join("souris-dw").join("bin")),
+    )
 }
 
 pub fn yt_dlp_binary_name() -> String {
