@@ -30,6 +30,21 @@ impl FFmpeg {
         }
     }
 
+    async fn try_extract_and_verify(bin_dir: &Path, path: &Path) -> Option<String> {
+        if let Err(e) = Self::extract_embedded(bin_dir, path) {
+            tracing::warn!("Failed to extract embedded ffmpeg: {}", e);
+            return None;
+        }
+        match Self::get_version(path).await {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::warn!("Extracted ffmpeg not usable: {}", e);
+                let _ = fs_err::remove_file(path);
+                None
+            }
+        }
+    }
+
     pub async fn ensure_installed() -> Self {
         let bin_dir = match platform::bin_dir() {
             Some(d) => d,
@@ -42,23 +57,32 @@ impl FFmpeg {
         let binary_path = bin_dir.join(&binary_name);
 
         if binary_path.exists() {
-            let version = Self::get_version(&binary_path).await.ok();
-            return Self {
-                binary_path,
-                version,
-            };
+            if let Ok(version) = Self::get_version(&binary_path).await {
+                return Self {
+                    binary_path,
+                    version: Some(version),
+                };
+            }
+            tracing::warn!("Existing ffmpeg binary is corrupt, re-extracting");
+            let _ = fs_err::remove_file(&binary_path);
         }
 
         if !FFMPEG_EMBEDDED.is_empty() {
-            if let Err(e) = Self::extract_embedded(&bin_dir, &binary_path) {
-                tracing::warn!("Failed to extract embedded ffmpeg: {}", e);
-                return Self::unavailable();
+            if let Some(version) = Self::try_extract_and_verify(&bin_dir, &binary_path).await {
+                return Self {
+                    binary_path,
+                    version: Some(version),
+                };
             }
-            let version = Self::get_version(&binary_path).await.ok();
-            return Self {
-                binary_path,
-                version,
-            };
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            if let Some(version) = Self::try_extract_and_verify(&bin_dir, &binary_path).await {
+                return Self {
+                    binary_path,
+                    version: Some(version),
+                };
+            }
+            tracing::error!("Failed to extract usable ffmpeg after retry");
+            return Self::unavailable();
         }
 
         tracing::warn!(

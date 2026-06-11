@@ -605,14 +605,14 @@ async fn handle_tui() -> Result<()> {
                             }
                         }
                         events::Action::CopyError => {
-                            if !app.show_error_popup {
-                                app.waiting_for_quit = false;
-                            } else if app.copy_error() {
-                                app.status_message = Some("Error copied to clipboard".into());
+                            if app.copy_error(app.selected_index) {
+                                app.status_message = Some("Copied".into());
+                            } else if app.copy_selected_url() {
+                                app.status_message = Some("URL copied".into());
                             } else {
-                                app.status_message =
-                                    Some("Error saved to souris-dw-error.txt".into());
+                                app.status_message = Some("Nothing to copy".into());
                             }
+                            app.waiting_for_quit = false;
                         }
                         events::Action::MoveDown => {
                             if app.show_search {

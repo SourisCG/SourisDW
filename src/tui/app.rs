@@ -251,8 +251,16 @@ impl AppState {
         self.show_error_popup = false;
     }
 
-    pub fn copy_error(&self) -> bool {
-        let msg = match &self.error_message {
+    pub fn copy_error(&self, selected: usize) -> bool {
+        let msg = self.error_message.as_deref().or_else(|| {
+            self.downloads
+                .get(selected)
+                .and_then(|dl| match &dl.status {
+                    DownloadStatus::Error(e) => Some(e.as_str()),
+                    _ => None,
+                })
+        });
+        let msg = match msg {
             Some(m) => m,
             None => return false,
         };

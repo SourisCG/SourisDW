@@ -218,20 +218,29 @@ impl YouTubeExtractor {
                             _ => None,
                         })
                         .unwrap_or("1080");
-                    format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                    if ffmpeg_path.is_some() {
+                        format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                    } else {
+                        format!("best[height<={}]", h)
+                    }
                 }
             };
             cmd.args(["-f", &format_str]);
 
             if let Format::Video(vf) = f {
-                cmd.args(["--merge-output-format", &vf.to_string()]);
+                if ffmpeg_path.is_some() {
+                    cmd.args(["--merge-output-format", &vf.to_string()]);
+                }
             }
             if let Format::Audio(_) = f {
                 cmd.args(["-x", "--audio-format", &f.to_string()]);
             }
         } else {
-            // Default: best quality with format hint
-            cmd.args(["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]"]);
+            if let Some(_ff) = ffmpeg_path {
+                cmd.args(["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]"]);
+            } else {
+                cmd.args(["-f", "best[height<=1080]"]);
+            }
         }
 
         cmd.args(["--socket-timeout", "30", "--retries", "10"]);
@@ -426,19 +435,29 @@ impl YouTubeExtractor {
                             _ => None,
                         })
                         .unwrap_or("1080");
-                    format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                    if ffmpeg_path.is_some() {
+                        format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                    } else {
+                        format!("best[height<={}]", h)
+                    }
                 }
             };
             cmd.args(["-f", &format_str]);
 
             if let Format::Video(vf) = f {
-                cmd.args(["--merge-output-format", &vf.to_string()]);
+                if ffmpeg_path.is_some() {
+                    cmd.args(["--merge-output-format", &vf.to_string()]);
+                }
             }
             if let Format::Audio(_) = f {
                 cmd.args(["-x", "--audio-format", &f.to_string()]);
             }
         } else {
-            cmd.args(["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]"]);
+            if ffmpeg_path.is_some() {
+                cmd.args(["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]"]);
+            } else {
+                cmd.args(["-f", "best[height<=1080]"]);
+            }
         }
 
         cmd.args(["--socket-timeout", "30", "--retries", "10"]);
