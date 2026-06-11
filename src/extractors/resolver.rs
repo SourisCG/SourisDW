@@ -1,6 +1,6 @@
 use crate::core::request::MediaTypeHint;
 use crate::core::types::*;
-use crate::error::SourisError;
+use crate::error::{Result, SourisError};
 use crate::extractors::spotify::SpotifyExtractor;
 use crate::extractors::youtube::YouTubeExtractor;
 

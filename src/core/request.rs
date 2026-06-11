@@ -169,7 +169,7 @@ impl DownloadRequestBuilder {
             builder = builder.on_progress(sender);
         }
 
-        let downloader = builder.build().await?;
+        let downloader = builder.build().await;
 
         let req = downloader
             .execute_request(crate::core::request::DownloadRequestBuilder {
