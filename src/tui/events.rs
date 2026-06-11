@@ -34,12 +34,9 @@ pub fn handle_key_event(key: KeyEvent, mode: &InputMode) -> Option<Action> {
 fn handle_normal_key(key: KeyEvent) -> Option<Action> {
     match key.code {
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            if key.modifiers.contains(KeyModifiers::SHIFT) {
-                Some(Action::CopyError)
-            } else {
-                Some(Action::ForceQuit)
-            }
+            Some(Action::ForceQuit)
         }
+        KeyCode::Char('c') => Some(Action::CopyError),
         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Search),
         KeyCode::Char('/') => Some(Action::Search),
         KeyCode::Esc | KeyCode::Char('q') => Some(Action::Back),

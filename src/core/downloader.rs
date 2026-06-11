@@ -259,7 +259,11 @@ impl SourisDW {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| self.default_output.display().to_string());
 
-        let ffmpeg_path = self.deps.ffmpeg().binary_path().to_path_buf();
+        let ffmpeg_path = if self.deps.ffmpeg().is_installed() {
+            Some(self.deps.ffmpeg().binary_path().to_path_buf())
+        } else {
+            None
+        };
         let cookies_file = req
             .cookies_file
             .clone()
@@ -279,7 +283,7 @@ impl SourisDW {
                 req.embed_thumbnail.unwrap_or(self.embed_thumbnail),
                 req.embed_subtitles.unwrap_or(self.embed_subtitles),
                 req.media_type.as_ref(),
-                Some(&ffmpeg_path),
+                ffmpeg_path.as_deref(),
                 cookies_file.as_deref(),
                 cookies_from_browser.as_deref(),
             )

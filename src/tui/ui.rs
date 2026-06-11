@@ -569,10 +569,7 @@ fn draw_error_overlay(f: &mut Frame, app: &AppState) {
     lines.extend(error_text);
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled(
-            " Ctrl+Shift+C",
-            Style::default().fg(SYNTHWAVE84_THEME.highlight),
-        ),
+        Span::styled(" c", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
         Span::styled(" Copy   ", Style::default().fg(SYNTHWAVE84_THEME.subtitle)),
         Span::styled("Esc", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
         Span::styled(" Close", Style::default().fg(SYNTHWAVE84_THEME.subtitle)),

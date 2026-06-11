@@ -605,10 +605,13 @@ async fn handle_tui() -> Result<()> {
                             }
                         }
                         events::Action::CopyError => {
-                            if app.copy_error() {
+                            if !app.show_error_popup {
+                                app.waiting_for_quit = false;
+                            } else if app.copy_error() {
                                 app.status_message = Some("Error copied to clipboard".into());
                             } else {
-                                app.status_message = Some("Failed to copy error".into());
+                                app.status_message =
+                                    Some("Error saved to souris-dw-error.txt".into());
                             }
                         }
                         events::Action::MoveDown => {

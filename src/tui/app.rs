@@ -256,7 +256,7 @@ impl AppState {
             Some(m) => m,
             None => return false,
         };
-        match arboard::Clipboard::new() {
+        let clipboard_ok = match arboard::Clipboard::new() {
             Ok(mut clipboard) => match clipboard.set_text(msg) {
                 Ok(_) => true,
                 Err(e) => {
@@ -266,6 +266,16 @@ impl AppState {
             },
             Err(e) => {
                 tracing::warn!("Failed to open clipboard: {}", e);
+                false
+            }
+        };
+        if clipboard_ok {
+            return true;
+        }
+        match std::fs::write("souris-dw-error.txt", msg) {
+            Ok(_) => true,
+            Err(e) => {
+                tracing::warn!("Failed to write error file: {}", e);
                 false
             }
         }

@@ -80,7 +80,7 @@ impl YtDlp {
             };
         }
 
-        Self::download(&binary_path.parent().unwrap_or(Path::new(".")), channel).await
+        Self::download(binary_path.parent().unwrap_or(Path::new(".")), channel).await
     }
 
     pub async fn download(bin_dir: &Path, channel: &str) -> Self {
