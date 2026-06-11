@@ -8,7 +8,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-souris-dw = "0.3.3"
+souris-dw = "0.3.6"
 ```
 
 ## Quick Start

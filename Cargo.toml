@@ -1,6 +1,6 @@
 [package]
 name = "souris-dw"
-version = "0.3.3"
+version = "0.3.6"
 edition = "2021"
 description = "Cross-platform music & video downloader for YouTube and Spotify"
 license = "MIT"

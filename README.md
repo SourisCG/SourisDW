@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/SourisCG/SourisDW/actions/workflows/ci.yml"><img src="https://github.com/SourisCG/SourisDW/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://github.com/SourisCG/SourisDW/actions/workflows/release.yml"><img src="https://github.com/SourisCG/SourisDW/actions/workflows/release.yml/badge.svg" /></a>
-  <img src="https://img.shields.io/badge/version-0.3.3-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/version-0.3.6-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/rust-1.70%2B-orange?style=flat-square&logo=rust" />
   <a href="https://github.com/SourisCG/SourisDW/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" /></a>
   <img src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey?style=flat-square" />
@@ -432,7 +432,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.3-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/version-0.3.6-blue?style=flat-square" />
   <a href="https://github.com/SourisCG/SourisDW/blob/main/LICENSE"><img src="https://img.shields.io/badge/licencia-MIT-green?style=flat-square" /></a>
   <img src="https://img.shields.io/badge/plataforma-linux%20%7C%20macos%20%7C%20windows-lightgrey?style=flat-square" />
 </p>

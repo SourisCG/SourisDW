@@ -2500,7 +2500,7 @@ dependencies = [
 
 [[package]]
 name = "souris-dw"
-version = "0.3.3"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "arboard",
