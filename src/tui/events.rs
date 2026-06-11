@@ -37,7 +37,10 @@ fn handle_normal_key(key: KeyEvent) -> Option<Action> {
             Some(Action::ForceQuit)
         }
         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Search),
+        KeyCode::Char('/') => Some(Action::Search),
         KeyCode::Esc | KeyCode::Char('q') => Some(Action::Back),
+        KeyCode::Tab => Some(Action::FocusNext),
+        KeyCode::BackTab => Some(Action::FocusPrev),
         KeyCode::Char('a') => Some(Action::AddUrl),
         KeyCode::Char('h') | KeyCode::Char('?') => Some(Action::Help),
         KeyCode::Char('s') => Some(Action::Settings),
@@ -94,4 +97,6 @@ pub enum Action {
     Cancel,
     CharInput(char),
     DeleteChar,
+    FocusNext,
+    FocusPrev,
 }

@@ -1,5 +1,5 @@
 use crate::tui::app::{AppState, DownloadStatus, InputMode, SETTINGS_OPTIONS};
-use crate::tui::theme::{format_duration, progress_bar, OPENCODE_THEME};
+use crate::tui::theme::{format_duration, progress_bar, SYNTHWAVE84_THEME};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -8,6 +8,16 @@ use ratatui::Frame;
 
 const MIN_WIDTH: u16 = 60;
 const MIN_HEIGHT: u16 = 20;
+
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else if max <= 3 {
+        s.chars().take(max).collect()
+    } else {
+        format!("{}...", &s[..max.saturating_sub(3)])
+    }
+}
 
 pub fn draw(f: &mut Frame, app: &AppState) {
     let area = f.area();
@@ -51,14 +61,14 @@ fn draw_too_small(f: &mut Frame, area: Rect) {
         Line::from(vec![Span::styled(
             " SourisDW",
             Style::default()
-                .fg(OPENCODE_THEME.title)
+                .fg(SYNTHWAVE84_THEME.title)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),
         Line::from(vec![Span::styled(
             " Terminal too small",
             Style::default()
-                .fg(OPENCODE_THEME.error)
+                .fg(SYNTHWAVE84_THEME.error)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(vec![Span::styled(
@@ -66,14 +76,14 @@ fn draw_too_small(f: &mut Frame, area: Rect) {
                 " Need at least {}x{} (current: {}x{})",
                 MIN_WIDTH, MIN_HEIGHT, area.width, area.height
             ),
-            Style::default().fg(OPENCODE_THEME.subtitle),
+            Style::default().fg(SYNTHWAVE84_THEME.subtitle),
         )]),
     ];
     let block = Paragraph::new(text).block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
     f.render_widget(block, area);
 }
@@ -87,41 +97,44 @@ fn draw_header(f: &mut Frame, area: Rect, app: &AppState) {
         Span::styled(
             " SourisDW",
             Style::default()
-                .fg(OPENCODE_THEME.title)
+                .fg(SYNTHWAVE84_THEME.title)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" v0.1.0 ", Style::default().fg(OPENCODE_THEME.subtitle)),
+        Span::styled(
+            format!(" v{} ", env!("CARGO_PKG_VERSION")),
+            Style::default().fg(SYNTHWAVE84_THEME.subtitle),
+        ),
     ];
 
     if active > 0 || completed > 0 || errors > 0 {
         spans.push(Span::styled(
             " -- ",
-            Style::default().fg(OPENCODE_THEME.border),
+            Style::default().fg(SYNTHWAVE84_THEME.border),
         ));
         if active > 0 {
             spans.push(Span::styled(
                 format!("{} downloading", active),
-                Style::default().fg(OPENCODE_THEME.info),
+                Style::default().fg(SYNTHWAVE84_THEME.info),
             ));
             spans.push(Span::styled(
                 " | ",
-                Style::default().fg(OPENCODE_THEME.border),
+                Style::default().fg(SYNTHWAVE84_THEME.border),
             ));
         }
         if completed > 0 {
             spans.push(Span::styled(
                 format!("{} completed", completed),
-                Style::default().fg(OPENCODE_THEME.success),
+                Style::default().fg(SYNTHWAVE84_THEME.success),
             ));
             spans.push(Span::styled(
                 " | ",
-                Style::default().fg(OPENCODE_THEME.border),
+                Style::default().fg(SYNTHWAVE84_THEME.border),
             ));
         }
         if errors > 0 {
             spans.push(Span::styled(
                 format!("{} errors", errors),
-                Style::default().fg(OPENCODE_THEME.error),
+                Style::default().fg(SYNTHWAVE84_THEME.error),
             ));
         }
     }
@@ -129,8 +142,8 @@ fn draw_header(f: &mut Frame, area: Rect, app: &AppState) {
     let header = Paragraph::new(vec![Line::from(spans)]).block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(header, area);
@@ -163,19 +176,19 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
         let is_selected = i == app.selected_index;
 
         let (status_icon, status_color) = match &dl.status {
-            DownloadStatus::Queued => ("\u{25cb}", OPENCODE_THEME.subtitle),
-            DownloadStatus::Downloading => ("\u{25cf}", OPENCODE_THEME.info),
-            DownloadStatus::PostProcessing => ("\u{25d0}", OPENCODE_THEME.warning),
-            DownloadStatus::Complete => ("\u{2713}", OPENCODE_THEME.success),
-            DownloadStatus::Error(_) => ("\u{2717}", OPENCODE_THEME.error),
+            DownloadStatus::Queued => ("\u{25cb}", SYNTHWAVE84_THEME.subtitle),
+            DownloadStatus::Downloading => ("\u{25cf}", SYNTHWAVE84_THEME.info),
+            DownloadStatus::PostProcessing => ("\u{25d0}", SYNTHWAVE84_THEME.warning),
+            DownloadStatus::Complete => ("\u{2713}", SYNTHWAVE84_THEME.success),
+            DownloadStatus::Error(_) => ("\u{2717}", SYNTHWAVE84_THEME.error),
         };
 
         let title_style = if is_selected {
             Style::default()
-                .fg(OPENCODE_THEME.highlight)
+                .fg(SYNTHWAVE84_THEME.highlight)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(OPENCODE_THEME.foreground)
+            Style::default().fg(SYNTHWAVE84_THEME.foreground)
         };
 
         let title_line = Line::from(vec![
@@ -186,7 +199,7 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
             Span::styled(format!("{} ", dl.title), title_style),
             Span::styled(
                 format!("[{}]", dl.format),
-                Style::default().fg(OPENCODE_THEME.subtitle),
+                Style::default().fg(SYNTHWAVE84_THEME.subtitle),
             ),
         ]);
 
@@ -195,28 +208,28 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
         let progress_line = Line::from(vec![
             Span::styled(
                 format!("   {} ", bar),
-                Style::default().fg(OPENCODE_THEME.progress),
+                Style::default().fg(SYNTHWAVE84_THEME.progress),
             ),
             Span::styled(
                 format!("{:.0}%", dl.progress),
                 Style::default()
-                    .fg(OPENCODE_THEME.foreground)
+                    .fg(SYNTHWAVE84_THEME.foreground)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!("  {} ", dl.speed),
-                Style::default().fg(OPENCODE_THEME.subtitle),
+                Style::default().fg(SYNTHWAVE84_THEME.subtitle),
             ),
             Span::styled(
                 format!("ETA {}", dl.eta),
-                Style::default().fg(OPENCODE_THEME.subtitle),
+                Style::default().fg(SYNTHWAVE84_THEME.subtitle),
             ),
         ]);
 
         let bg_color = if is_selected {
             Color::Rgb(40, 40, 48)
         } else {
-            OPENCODE_THEME.background
+            SYNTHWAVE84_THEME.background
         };
 
         items.push(
@@ -227,7 +240,7 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
     if items.is_empty() {
         items.push(ListItem::new(Line::from(vec![Span::styled(
             "  No downloads yet",
-            Style::default().fg(OPENCODE_THEME.subtitle),
+            Style::default().fg(SYNTHWAVE84_THEME.subtitle),
         )])));
     }
 
@@ -236,12 +249,12 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
             .title(" Downloads ")
             .title_style(
                 Style::default()
-                    .fg(OPENCODE_THEME.title)
+                    .fg(SYNTHWAVE84_THEME.title)
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(list, area);
@@ -256,16 +269,16 @@ fn draw_queue(f: &mut Frame, area: Rect, app: &AppState) {
                 Span::styled(
                     format!(" {} ", i + 1),
                     Style::default()
-                        .fg(OPENCODE_THEME.accent)
+                        .fg(SYNTHWAVE84_THEME.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     dl.title.clone(),
-                    Style::default().fg(OPENCODE_THEME.foreground),
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
                 Span::styled(
                     format!(" ({})", dl.platform),
-                    Style::default().fg(OPENCODE_THEME.subtitle),
+                    Style::default().fg(SYNTHWAVE84_THEME.subtitle),
                 ),
             ])));
         }
@@ -274,7 +287,7 @@ fn draw_queue(f: &mut Frame, area: Rect, app: &AppState) {
     if items.is_empty() {
         items.push(ListItem::new(Line::from(vec![Span::styled(
             "  Queue empty",
-            Style::default().fg(OPENCODE_THEME.subtitle),
+            Style::default().fg(SYNTHWAVE84_THEME.subtitle),
         )])));
     }
 
@@ -283,12 +296,12 @@ fn draw_queue(f: &mut Frame, area: Rect, app: &AppState) {
             .title(" Queue ")
             .title_style(
                 Style::default()
-                    .fg(OPENCODE_THEME.title)
+                    .fg(SYNTHWAVE84_THEME.title)
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(list, area);
@@ -307,53 +320,53 @@ fn draw_details_panel(f: &mut Frame, area: Rect, app: &AppState) {
 fn draw_selected_details(f: &mut Frame, area: Rect, app: &AppState) {
     let details = if let Some(dl) = app.downloads.get(app.selected_index) {
         let (status_text, status_color) = match &dl.status {
-            DownloadStatus::Queued => ("Queued", OPENCODE_THEME.subtitle),
-            DownloadStatus::Downloading => ("Downloading", OPENCODE_THEME.info),
-            DownloadStatus::PostProcessing => ("Processing", OPENCODE_THEME.warning),
-            DownloadStatus::Complete => ("Complete", OPENCODE_THEME.success),
-            DownloadStatus::Error(e) => (e.as_str(), OPENCODE_THEME.error),
+            DownloadStatus::Queued => ("Queued", SYNTHWAVE84_THEME.subtitle),
+            DownloadStatus::Downloading => ("Downloading", SYNTHWAVE84_THEME.info),
+            DownloadStatus::PostProcessing => ("Processing", SYNTHWAVE84_THEME.warning),
+            DownloadStatus::Complete => ("Complete", SYNTHWAVE84_THEME.success),
+            DownloadStatus::Error(e) => (e.as_str(), SYNTHWAVE84_THEME.error),
         };
 
         let mut lines = vec![
             Line::from(vec![
-                Span::styled("  Title    ", Style::default().fg(OPENCODE_THEME.accent)),
-                Span::styled(&dl.title, Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("  Title    ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
+                Span::styled(&dl.title, Style::default().fg(SYNTHWAVE84_THEME.foreground)),
             ]),
             Line::from(vec![
-                Span::styled("  Platform ", Style::default().fg(OPENCODE_THEME.accent)),
-                Span::styled(&dl.platform, Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("  Platform ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
+                Span::styled(&dl.platform, Style::default().fg(SYNTHWAVE84_THEME.foreground)),
             ]),
             Line::from(vec![
-                Span::styled("  Status   ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled("  Status   ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
                 Span::styled(status_text, Style::default().fg(status_color)),
             ]),
             Line::from(vec![
-                Span::styled("  Format   ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled("  Format   ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
                 Span::styled(
                     format!("{} / {}", dl.format, dl.quality),
-                    Style::default().fg(OPENCODE_THEME.foreground),
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
             ]),
         ];
 
         if !dl.speed.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("  Speed    ", Style::default().fg(OPENCODE_THEME.accent)),
-                Span::styled(&dl.speed, Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("  Speed    ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
+                Span::styled(&dl.speed, Style::default().fg(SYNTHWAVE84_THEME.foreground)),
             ]));
         }
         if !dl.eta.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("  ETA      ", Style::default().fg(OPENCODE_THEME.accent)),
-                Span::styled(&dl.eta, Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("  ETA      ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
+                Span::styled(&dl.eta, Style::default().fg(SYNTHWAVE84_THEME.foreground)),
             ]));
         }
         if let Some(ref path) = dl.path {
             lines.push(Line::from(vec![
-                Span::styled("  Path     ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled("  Path     ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
                 Span::styled(
                     path.as_str(),
-                    Style::default().fg(OPENCODE_THEME.foreground),
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
             ]));
         }
@@ -362,7 +375,7 @@ fn draw_selected_details(f: &mut Frame, area: Rect, app: &AppState) {
     } else {
         vec![Line::from(vec![Span::styled(
             "  No download selected",
-            Style::default().fg(OPENCODE_THEME.subtitle),
+            Style::default().fg(SYNTHWAVE84_THEME.subtitle),
         )])]
     };
 
@@ -371,12 +384,12 @@ fn draw_selected_details(f: &mut Frame, area: Rect, app: &AppState) {
             .title(" Details ")
             .title_style(
                 Style::default()
-                    .fg(OPENCODE_THEME.title)
+                    .fg(SYNTHWAVE84_THEME.title)
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(details_block, area);
@@ -390,39 +403,39 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
                 Span::styled(
                     " a",
                     Style::default()
-                        .fg(OPENCODE_THEME.highlight)
+                        .fg(SYNTHWAVE84_THEME.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" add URL  ", Style::default().fg(OPENCODE_THEME.subtitle)),
+                Span::styled(" add URL  ", Style::default().fg(SYNTHWAVE84_THEME.subtitle)),
                 Span::styled(
                     "Ctrl+F",
                     Style::default()
-                        .fg(OPENCODE_THEME.highlight)
+                        .fg(SYNTHWAVE84_THEME.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" search", Style::default().fg(OPENCODE_THEME.subtitle)),
+                Span::styled(" search", Style::default().fg(SYNTHWAVE84_THEME.subtitle)),
             ]),
         ),
         InputMode::Input => (
             " Enter URL ",
             Line::from(vec![
-                Span::styled(" > ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled(" > ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
                 Span::styled(
                     &app.input_buffer,
-                    Style::default().fg(OPENCODE_THEME.foreground),
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
-                Span::styled("\u{2588}", Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("\u{2588}", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
             ]),
         ),
         InputMode::Search => (
             " Search ",
             Line::from(vec![
-                Span::styled(" > ", Style::default().fg(OPENCODE_THEME.accent)),
+                Span::styled(" > ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
                 Span::styled(
                     &app.input_buffer,
-                    Style::default().fg(OPENCODE_THEME.foreground),
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
-                Span::styled("\u{2588}", Style::default().fg(OPENCODE_THEME.foreground)),
+                Span::styled("\u{2588}", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
             ]),
         ),
     };
@@ -432,12 +445,12 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
             .title(title)
             .title_style(
                 Style::default()
-                    .fg(OPENCODE_THEME.title)
+                    .fg(SYNTHWAVE84_THEME.title)
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(input_block, area);
@@ -467,13 +480,13 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &AppState) {
 
     let footer = Paragraph::new(vec![Line::from(vec![Span::styled(
         shortcuts,
-        Style::default().fg(OPENCODE_THEME.subtitle),
+        Style::default().fg(SYNTHWAVE84_THEME.subtitle),
     )])])
     .block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(footer, area);
@@ -485,17 +498,17 @@ fn draw_status_bar(f: &mut Frame, area: Rect, app: &AppState) {
     let has_active = app.get_active_count() > 0;
 
     let bg = if has_errors {
-        OPENCODE_THEME.error
+        SYNTHWAVE84_THEME.error
     } else if has_active {
-        OPENCODE_THEME.info
+        SYNTHWAVE84_THEME.info
     } else {
-        OPENCODE_THEME.accent
+        SYNTHWAVE84_THEME.accent
     };
 
     let status_bar = Paragraph::new(Line::from(vec![Span::styled(
         format!(" {} ", status),
         Style::default()
-            .fg(OPENCODE_THEME.background)
+            .fg(SYNTHWAVE84_THEME.background)
             .bg(bg)
             .add_modifier(Modifier::BOLD),
     )]));
@@ -512,113 +525,113 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
         Line::from(vec![Span::styled(
             " SourisDW - Help",
             Style::default()
-                .fg(OPENCODE_THEME.title)
+                .fg(SYNTHWAVE84_THEME.title)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),
         Line::from(vec![Span::styled(
             " Navigation",
             Style::default()
-                .fg(OPENCODE_THEME.info)
+                .fg(SYNTHWAVE84_THEME.info)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(vec![
-            Span::styled("  j / Down", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  j / Down", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "     Move down",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  k / Up", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  k / Up", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "       Move up",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  g / Home", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  g / Home", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "   Go to first",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  G / End", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  G / End", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "    Go to last",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(""),
         Line::from(vec![Span::styled(
             " Actions",
             Style::default()
-                .fg(OPENCODE_THEME.info)
+                .fg(SYNTHWAVE84_THEME.info)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(vec![
-            Span::styled("  a", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  a", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "         Add URL",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  Ctrl+F", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  Ctrl+F", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "     Search",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  Enter", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  Enter", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "     Download selected",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  y", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  y", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "         Copy URL",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  d / Del", Style::default().fg(OPENCODE_THEME.highlight)),
-            Span::styled("   Delete", Style::default().fg(OPENCODE_THEME.foreground)),
+            Span::styled("  d / Del", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+            Span::styled("   Delete", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
         ]),
         Line::from(""),
         Line::from(vec![Span::styled(
             " Views",
             Style::default()
-                .fg(OPENCODE_THEME.info)
+                .fg(SYNTHWAVE84_THEME.info)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(vec![
-            Span::styled("  s", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  s", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "         Settings",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  h / ?", Style::default().fg(OPENCODE_THEME.highlight)),
-            Span::styled("     Help", Style::default().fg(OPENCODE_THEME.foreground)),
+            Span::styled("  h / ?", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+            Span::styled("     Help", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
         ]),
         Line::from(vec![
-            Span::styled("  q / Esc", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  q / Esc", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "   Back / Quit",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
         Line::from(vec![
-            Span::styled("  Ctrl+C", Style::default().fg(OPENCODE_THEME.highlight)),
+            Span::styled("  Ctrl+C", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
             Span::styled(
                 "    Force quit",
-                Style::default().fg(OPENCODE_THEME.foreground),
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
             ),
         ]),
     ];
@@ -629,14 +642,14 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
                 .title(" Help ")
                 .title_style(
                     Style::default()
-                        .fg(OPENCODE_THEME.title)
+                        .fg(SYNTHWAVE84_THEME.title)
                         .add_modifier(Modifier::BOLD),
                 )
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(OPENCODE_THEME.border))
-                .style(Style::default().bg(OPENCODE_THEME.background)),
+                .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+                .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
         )
-        .style(Style::default().bg(OPENCODE_THEME.background));
+        .style(Style::default().bg(SYNTHWAVE84_THEME.background));
 
     f.render_widget(help_block, area);
 }
@@ -658,16 +671,16 @@ fn draw_settings_overlay(f: &mut Frame, app: &AppState) {
             let (option_style, value_style) = if is_selected {
                 (
                     Style::default()
-                        .fg(OPENCODE_THEME.highlight)
+                        .fg(SYNTHWAVE84_THEME.highlight)
                         .add_modifier(Modifier::BOLD),
                     Style::default()
-                        .fg(OPENCODE_THEME.info)
+                        .fg(SYNTHWAVE84_THEME.info)
                         .add_modifier(Modifier::BOLD),
                 )
             } else {
                 (
-                    Style::default().fg(OPENCODE_THEME.foreground),
-                    Style::default().fg(OPENCODE_THEME.subtitle),
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
+                    Style::default().fg(SYNTHWAVE84_THEME.subtitle),
                 )
             };
 
@@ -693,12 +706,12 @@ fn draw_settings_overlay(f: &mut Frame, app: &AppState) {
             ))
             .title_style(
                 Style::default()
-                    .fg(OPENCODE_THEME.title)
+                    .fg(SYNTHWAVE84_THEME.title)
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(settings_block, area);
@@ -715,16 +728,16 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
         Span::styled(
             " Query: ",
             Style::default()
-                .fg(OPENCODE_THEME.accent)
+                .fg(SYNTHWAVE84_THEME.accent)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             &app.input_buffer,
             Style::default()
-                .fg(OPENCODE_THEME.foreground)
+                .fg(SYNTHWAVE84_THEME.foreground)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(OPENCODE_THEME.foreground)),
+        Span::styled("\u{2588}", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
     ])));
 
     items.push(ListItem::new(Line::from("")));
@@ -732,7 +745,7 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
     if app.search_results.is_empty() {
         items.push(ListItem::new(Line::from(vec![Span::styled(
             "  Type and press Enter to search",
-            Style::default().fg(OPENCODE_THEME.subtitle),
+            Style::default().fg(SYNTHWAVE84_THEME.subtitle),
         )])));
     } else {
         for (i, result) in app.search_results.iter().enumerate() {
@@ -740,12 +753,12 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
             let (style, prefix) = if is_selected {
                 (
                     Style::default()
-                        .fg(OPENCODE_THEME.highlight)
+                        .fg(SYNTHWAVE84_THEME.highlight)
                         .add_modifier(Modifier::BOLD),
                     " > ",
                 )
             } else {
-                (Style::default().fg(OPENCODE_THEME.foreground), "   ")
+                (Style::default().fg(SYNTHWAVE84_THEME.foreground), "   ")
             };
 
             let duration_str = result.duration.map(format_duration).unwrap_or_default();
@@ -755,7 +768,7 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
                 Span::styled(result.title.clone(), style),
                 Span::styled(
                     format!(" [{}]", duration_str),
-                    Style::default().fg(OPENCODE_THEME.subtitle),
+                    Style::default().fg(SYNTHWAVE84_THEME.subtitle),
                 ),
             ])));
         }
@@ -766,12 +779,12 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
             .title(format!(" Search ({} results) ", app.search_results.len()))
             .title_style(
                 Style::default()
-                    .fg(OPENCODE_THEME.title)
+                    .fg(SYNTHWAVE84_THEME.title)
                     .add_modifier(Modifier::BOLD),
             )
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(OPENCODE_THEME.border))
-            .style(Style::default().bg(OPENCODE_THEME.background)),
+            .border_style(Style::default().fg(SYNTHWAVE84_THEME.border))
+            .style(Style::default().bg(SYNTHWAVE84_THEME.background)),
     );
 
     f.render_widget(search_block, area);

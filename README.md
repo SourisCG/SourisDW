@@ -14,20 +14,22 @@
 <p align="center">
   <a href="https://github.com/SourisCG/SourisDW/actions/workflows/ci.yml"><img src="https://github.com/SourisCG/SourisDW/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://github.com/SourisCG/SourisDW/actions/workflows/release.yml"><img src="https://github.com/SourisCG/SourisDW/actions/workflows/release.yml/badge.svg" /></a>
-  <img src="https://img.shields.io/badge/version-0.1.0-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/version-0.2.0-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/rust-1.70%2B-orange?style=flat-square&logo=rust" />
   <a href="https://github.com/SourisCG/SourisDW/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" /></a>
   <img src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey?style=flat-square" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64"><img src="https://img.shields.io/badge/Linux_x86__64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64"><img src="https://img.shields.io/badge/Linux_x86__64_(musl)-download-purple?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-glibc"><img src="https://img.shields.io/badge/Linux_x86__64_(glibc)-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-fedora"><img src="https://img.shields.io/badge/Fedora_x86__64-download-orange?style=for-the-badge&logo=fedora&logoColor=white" /></a>
-  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-x86_64-musl"><img src="https://img.shields.io/badge/Linux_x86__64_musl-download-purple?style=for-the-badge&logo=linux&logoColor=white" /></a>
-  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-aarch64"><img src="https://img.shields.io/badge/Linux_ARM64-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-aarch64"><img src="https://img.shields.io/badge/Linux_ARM64_(musl)-download-purple?style=for-the-badge&logo=linux&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-linux-aarch64-glibc"><img src="https://img.shields.io/badge/Linux_ARM64_(glibc)-download-blue?style=for-the-badge&logo=linux&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-x86_64"><img src="https://img.shields.io/badge/macOS_Intel-download-blue?style=for-the-badge&logo=apple&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-macos-aarch64"><img src="https://img.shields.io/badge/macOS_Apple__Silicon-download-blue?style=for-the-badge&logo=apple&logoColor=white" /></a>
   <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-windows-x86_64.exe"><img src="https://img.shields.io/badge/Windows_x64-download-blue?style=for-the-badge&logo=windows&logoColor=white" /></a>
+  <a href="https://github.com/SourisCG/SourisDW/releases/latest/download/souris-dw-windows-arm64.exe"><img src="https://img.shields.io/badge/Windows_ARM64-download-blue?style=for-the-badge&logo=windows&logoColor=white" /></a>
 </p>
 
 ---
@@ -138,7 +140,7 @@ Interactive terminal interface with:
 - Keyboard shortcuts (vim-style navigation)
 - Settings panel
 - Clipboard support (y copies URL)
-- Double-Esc to quit
+- Keyboard shortcuts: / to search, Tab to navigate, Esc/q to go back
 
 ### As a Library (Rust)
 
@@ -347,3 +349,15 @@ Official SDKs with fluent API for multiple languages:
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Espanol
+
+SourisDW es un descargador de musica y video multiplataforma para YouTube y Spotify. Descarga binarios estaticos precompilados desde [releases](https://github.com/SourisCG/SourisDW/releases) o usa el instalador:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SourisCG/SourisDW/main/install.sh | bash
+```
+
+Documentacion en espanol disponible en [docs/ES/](docs/ES/).

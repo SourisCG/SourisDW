@@ -1,7 +1,6 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -20,10 +19,11 @@ fn main() {
             Ok(_) => println!("cargo:warning=ffmpeg downloaded successfully"),
             Err(e) => {
                 println!(
-                    "cargo:warning=Failed to download ffmpeg: {}. Using empty placeholder.",
+                    "cargo:warning=Failed to download ffmpeg: {}. \
+                     Using empty placeholder. SourisDW will fall back to system ffmpeg.",
                     e
                 );
-                fs::write(&ffmpeg_path, b"").unwrap();
+                let _ = fs::write(&ffmpeg_path, b"");
             }
         }
     }
@@ -46,63 +46,49 @@ fn download_ffmpeg(os: &str, arch: &str, dest: &PathBuf) -> Result<(), Box<dyn s
         ("macos", "aarch64") => {
             "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-arm64.gz"
         }
-        ("windows", _) => {
+        ("windows", "x86_64") => {
             "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-win32-x64.gz"
+        }
+        ("windows", "aarch64") => {
+            "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-win32-arm64.gz"
         }
         _ => {
             return Err(format!("No ffmpeg available for {} {}", os, arch).into());
         }
     };
 
-    download_and_decompress(url, dest, os == "windows")
+    download_and_decompress(url, dest)
 }
 
 fn download_and_decompress(
     url: &str,
     dest: &PathBuf,
-    skip_decompress: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let temp_file = if skip_decompress {
-        dest.with_extension("exe")
-    } else {
-        dest.with_extension("gz")
-    };
+    let temp_gz = dest.with_extension("gz");
 
-    let status = Command::new("curl")
-        .args(["-fsSL", "-o", temp_file.to_str().unwrap(), url])
-        .status()?;
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("SourisDW/0.2.0")
+        .build()?;
+    let response = client.get(url).send()?;
+    let bytes = response.bytes()?;
 
-    if !status.success() {
-        return Err("Failed to download ffmpeg".into());
-    }
+    // Decompress gzip
+    use flate2::read::GzDecoder;
+    use std::io::Read;
+    let mut decoder = GzDecoder::new(&bytes[..]);
+    let mut decompressed = Vec::new();
+    decoder.read_to_end(&mut decompressed)?;
 
-    if skip_decompress {
-        fs::rename(&temp_file, dest)?;
-    } else {
-        let status = Command::new("gunzip")
-            .arg("-f")
-            .arg(temp_file.to_str().unwrap())
-            .status();
-
-        match status {
-            Ok(s) if s.success() => {
-                let decompressed = dest.with_extension("");
-                if decompressed.exists() {
-                    fs::rename(&decompressed, dest)?;
-                }
-            }
-            _ => {
-                fs::rename(&temp_file, dest)?;
-            }
-        }
-    }
+    fs::write(dest, &decompressed)?;
 
     #[cfg(unix)]
     {
-        Command::new("chmod")
-            .args(["+x", dest.to_str().unwrap()])
-            .status()?;
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(dest, fs::Permissions::from_mode(0o755))?;
     }
+
+    // Clean up temp file if it exists
+    let _ = fs::remove_file(&temp_gz);
 
     Ok(())
 }

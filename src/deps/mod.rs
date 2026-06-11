@@ -87,6 +87,8 @@ impl DepManager {
             });
         }
 
+        // Also update ffmpeg
+        self.ffmpeg.update().await?;
         results.push(DepStatus {
             name: "ffmpeg".into(),
             installed: self.ffmpeg.is_installed(),

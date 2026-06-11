@@ -22,7 +22,15 @@ function Write-Error-Exit {
 }
 
 function Get-DownloadUrl {
-    $arch = if ([System.Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }
+    $arch = if ([System.Environment]::Is64BitOperatingSystem) {
+        if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_IDENTIFIER -match 'ARM') {
+            "arm64"
+        } else {
+            "x86_64"
+        }
+    } else {
+        Write-Error-Exit "32-bit Windows no soportado. SourisDW requiere 64-bit."
+    }
 
     if ($Version -eq "latest") {
         $baseUrl = "https://github.com/$Repo/releases/latest/download"
@@ -30,6 +38,9 @@ function Get-DownloadUrl {
         $baseUrl = "https://github.com/$Repo/releases/download/$Version"
     }
 
+    if ($arch -eq "arm64") {
+        return "$baseUrl/${Binary}-windows-arm64.exe"
+    }
     return "$baseUrl/${Binary}-windows-${arch}.exe"
 }
 
@@ -41,7 +52,7 @@ function Install-Binary {
     $exePath = Join-Path $InstallDir "${Binary}.exe"
 
     try {
-        Invoke-WebRequest -Uri $Url -OutFile $exePath -UseBasicParsing
+        Invoke-WebRequest -Uri $Url -OutFile $exePath -UseBasicParsing -MaximumRetryCount 3
     } catch {
         Write-Error-Exit "Failed to download: $_"
     }

@@ -48,12 +48,30 @@ pub fn current_os() -> Os {
     }
 }
 
+pub fn try_current_os() -> Result<Os, String> {
+    match std::env::consts::OS {
+        "linux" => Ok(Os::Linux),
+        "macos" => Ok(Os::Macos),
+        "windows" => Ok(Os::Windows),
+        other => Err(format!("Unsupported OS: {}", other)),
+    }
+}
+
 pub fn current_arch() -> Arch {
     match std::env::consts::ARCH {
         "x86_64" => Arch::X86_64,
         "aarch64" | "arm64" => Arch::Aarch64,
         "armv7l" => Arch::Armv7l,
         other => panic!("Unsupported architecture: {}", other),
+    }
+}
+
+pub fn try_current_arch() -> Result<Arch, String> {
+    match std::env::consts::ARCH {
+        "x86_64" => Ok(Arch::X86_64),
+        "aarch64" | "arm64" => Ok(Arch::Aarch64),
+        "armv7l" => Ok(Arch::Armv7l),
+        other => Err(format!("Unsupported architecture: {}", other)),
     }
 }
 
@@ -114,13 +132,14 @@ pub fn yt_dlp_release_filename() -> &'static str {
 }
 
 pub fn yt_dlp_download_url(version: &str) -> String {
+    let release_path = if version == "latest" || version == "stable" {
+        "latest".to_string()
+    } else {
+        format!("download/{}", version)
+    };
     format!(
-        "https://github.com/yt-dlp/yt-dlp/releases/{}/download/{}",
-        if version == "latest" || version == "stable" {
-            "latest".to_string()
-        } else {
-            format!("tag/{}", version)
-        },
+        "https://github.com/yt-dlp/yt-dlp/releases/{}/{}",
+        release_path,
         yt_dlp_release_filename()
     )
 }

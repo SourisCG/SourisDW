@@ -15,19 +15,19 @@ pub struct Theme {
     pub subtitle: Color,
 }
 
-pub const OPENCODE_THEME: Theme = Theme {
-    background: Color::Rgb(30, 30, 35),
-    foreground: Color::Rgb(207, 206, 205),
-    accent: Color::Rgb(101, 99, 99),
-    highlight: Color::Rgb(241, 236, 236),
-    success: Color::Rgb(134, 239, 172),
-    warning: Color::Rgb(253, 224, 71),
-    error: Color::Rgb(252, 165, 165),
-    info: Color::Rgb(147, 197, 253),
-    progress: Color::Rgb(196, 181, 253),
-    border: Color::Rgb(75, 70, 70),
-    title: Color::Rgb(241, 236, 236),
-    subtitle: Color::Rgb(156, 163, 175),
+pub const SYNTHWAVE84_THEME: Theme = Theme {
+    background: Color::Rgb(0x26, 0x23, 0x35),
+    foreground: Color::Rgb(0xff, 0xff, 0xff),
+    accent: Color::Rgb(0x36, 0xf9, 0xf6),
+    highlight: Color::Rgb(0xff, 0x7e, 0xdb),
+    success: Color::Rgb(0x72, 0xf1, 0xb8),
+    warning: Color::Rgb(0xfe, 0xde, 0x5d),
+    error: Color::Rgb(0xfe, 0x44, 0x50),
+    info: Color::Rgb(0xff, 0x8b, 0x39),
+    progress: Color::Rgb(0x36, 0xf9, 0xf6),
+    border: Color::Rgb(0x84, 0x8b, 0xbd),
+    title: Color::Rgb(0xff, 0x7e, 0xdb),
+    subtitle: Color::Rgb(0x84, 0x8b, 0xbd),
 };
 
 pub fn progress_bar(percent: f64, width: usize) -> String {

@@ -3,7 +3,6 @@ pub mod core;
 pub mod deps;
 pub mod error;
 pub mod extractors;
-pub mod postprocess;
 pub mod tui;
 pub mod utils;
 

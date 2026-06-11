@@ -16,6 +16,7 @@
 const { SourisDWBuilder } = require('./builder');
 const { DownloadRequest } = require('./request');
 const { SourisError, DependencyError, DownloadError } = require('./exceptions');
+const { spawn } = require('child_process');
 
 class SourisDW {
   constructor(config) {

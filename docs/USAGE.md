@@ -165,7 +165,7 @@ souris-dw tui
 | `p` | Pause/Resume |
 | `s` | Settings |
 | `h` / `?` | Help |
-| `q` / `Esc` | Back (double-Esc to quit) |
+| `q` / `Esc` | Back / Quit |
 | `Ctrl+c` | Force quit |
 
 ## JSON Output

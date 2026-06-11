@@ -22,6 +22,8 @@ pub struct SourisDWBuilder {
     on_progress: Option<ProgressSender>,
     spotify_client_id: Option<String>,
     spotify_client_secret: Option<String>,
+    cookies_file: Option<String>,
+    cookies_from_browser: Option<String>,
 }
 
 impl Default for SourisDWBuilder {
@@ -35,8 +37,8 @@ impl SourisDWBuilder {
         Self {
             auto_update: true,
             yt_dlp_channel: "stable".to_string(),
-            format: None,
-            quality: None,
+            format: Some(Format::Video(VideoFormat::Mp4)),
+            quality: Some(Quality::Video(VideoQuality::P1080)),
             output: None,
             parallel: 4,
             embed_metadata: true,
@@ -126,6 +128,16 @@ impl SourisDWBuilder {
         self
     }
 
+    pub fn cookies_file(mut self, path: impl Into<String>) -> Self {
+        self.cookies_file = Some(path.into());
+        self
+    }
+
+    pub fn cookies_from_browser(mut self, browser: impl Into<String>) -> Self {
+        self.cookies_from_browser = Some(browser.into());
+        self
+    }
+
     pub async fn build(self) -> Result<SourisDW> {
         let deps = DepManager::new(self.auto_update, &self.yt_dlp_channel).await?;
 
@@ -152,6 +164,8 @@ impl SourisDWBuilder {
             on_progress: self.on_progress,
             spotify_client_id: self.spotify_client_id,
             spotify_client_secret: self.spotify_client_secret,
+            cookies_file: self.cookies_file,
+            cookies_from_browser: self.cookies_from_browser,
         })
     }
 }
@@ -173,6 +187,8 @@ pub struct SourisDW {
     spotify_client_id: Option<String>,
     #[allow(dead_code)]
     spotify_client_secret: Option<String>,
+    cookies_file: Option<String>,
+    cookies_from_browser: Option<String>,
 }
 
 impl SourisDW {
@@ -242,6 +258,8 @@ impl SourisDW {
             .unwrap_or_else(|| self.default_output.display().to_string());
 
         let ffmpeg_path = self.deps.ffmpeg().binary_path().to_path_buf();
+        let cookies_file = req.cookies_file.clone().or_else(|| self.cookies_file.clone());
+        let cookies_from_browser = req.cookies_from_browser.clone().or_else(|| self.cookies_from_browser.clone());
 
         self.resolver
             .resolve_download(
@@ -254,6 +272,8 @@ impl SourisDW {
                 req.embed_subtitles.unwrap_or(self.embed_subtitles),
                 req.media_type.as_ref(),
                 Some(&ffmpeg_path),
+                cookies_file.as_deref(),
+                cookies_from_browser.as_deref(),
             )
             .await
     }

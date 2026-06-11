@@ -39,6 +39,14 @@ detect_arch() {
     esac
 }
 
+detect_libc() {
+    if command -v ldd &>/dev/null && ldd --version 2>&1 | grep -qi "glibc"; then
+        echo "glibc"
+    else
+        echo "musl"
+    fi
+}
+
 get_download_url() {
     local os="$1"
     local arch="$2"
@@ -51,11 +59,24 @@ get_download_url() {
     fi
 
     case "${os}-${arch}" in
-        linux-x86_64)   echo "${base_url}/${BINARY}-linux-x86_64-musl" ;;
-        linux-aarch64)  echo "${base_url}/${BINARY}-linux-aarch64" ;;
+        linux-x86_64)
+            if [ "$(detect_libc)" = "glibc" ]; then
+                echo "${base_url}/${BINARY}-linux-x86_64-glibc"
+            else
+                echo "${base_url}/${BINARY}-linux-x86_64"
+            fi
+            ;;
+        linux-aarch64)
+            if [ "$(detect_libc)" = "glibc" ]; then
+                echo "${base_url}/${BINARY}-linux-aarch64-glibc"
+            else
+                echo "${base_url}/${BINARY}-linux-aarch64"
+            fi
+            ;;
         macos-x86_64)   echo "${base_url}/${BINARY}-macos-x86_64" ;;
         macos-aarch64)  echo "${base_url}/${BINARY}-macos-aarch64" ;;
         windows-x86_64) echo "${base_url}/${BINARY}-windows-x86_64.exe" ;;
+        windows-aarch64) echo "${base_url}/${BINARY}-windows-arm64.exe" ;;
         *)              error "No binary available for ${os}-${arch}" ;;
     esac
 }

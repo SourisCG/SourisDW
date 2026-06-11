@@ -9,6 +9,8 @@ pub struct AppConfig {
     pub ffmpeg: FFmpegConfig,
     pub download: DownloadConfig,
     pub spotify: Option<SpotifyConfig>,
+    #[serde(skip)]
+    pub dirty: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +63,7 @@ impl Default for AppConfig {
                 max_retries: 3,
             },
             spotify: None,
+            dirty: false,
         }
     }
 }
@@ -81,8 +84,9 @@ impl AppConfig {
             .ok_or_else(|| SourisError::ConfigError("Cannot determine config directory".into()))?;
 
         if !path.exists() {
-            let config = Self::default();
+            let mut config = Self::default();
             config.save()?;
+            config.dirty = false;
             return Ok(config);
         }
 
@@ -184,6 +188,15 @@ impl AppConfig {
             }
             _ => return Err(SourisError::ConfigError(format!("Unknown key: {}", key))),
         }
-        self.save()
+        self.dirty = true;
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<()> {
+        if self.dirty {
+            self.save()?;
+            self.dirty = false;
+        }
+        Ok(())
     }
 }

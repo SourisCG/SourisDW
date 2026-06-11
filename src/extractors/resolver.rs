@@ -161,6 +161,8 @@ impl Resolver {
         embed_subtitles: bool,
         media_type: Option<&MediaTypeHint>,
         ffmpeg_path: Option<&std::path::Path>,
+        cookies_file: Option<&str>,
+        cookies_from_browser: Option<&str>,
     ) -> Result<DownloadResult> {
         let platform = self.detect_platform(url);
         let resource_type = self.detect_resource_type(url);
@@ -180,6 +182,8 @@ impl Resolver {
                             embed_subtitles,
                             4,
                             ffmpeg_path,
+                            cookies_file,
+                            cookies_from_browser,
                         )
                         .await?;
 
@@ -208,6 +212,8 @@ impl Resolver {
                             embed_subtitles,
                             media_type,
                             ffmpeg_path,
+                            cookies_file,
+                            cookies_from_browser,
                         )
                         .await
                 }
@@ -236,6 +242,8 @@ impl Resolver {
                                     embed_subtitles,
                                     media_type,
                                     ffmpeg_path,
+                                    cookies_file,
+                                    cookies_from_browser,
                                 )
                                 .await?;
 
@@ -271,6 +279,8 @@ impl Resolver {
                                         embed_subtitles,
                                         media_type,
                                         ffmpeg_path,
+                                        cookies_file,
+                                        cookies_from_browser,
                                     )
                                     .await;
 
@@ -317,6 +327,8 @@ impl Resolver {
                         embed_subtitles,
                         media_type,
                         ffmpeg_path,
+                        cookies_file,
+                        cookies_from_browser,
                     )
                     .await
             }

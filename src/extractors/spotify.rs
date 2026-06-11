@@ -1,9 +1,14 @@
 use crate::error::{Result, SourisError};
 use serde_json::Value;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+const TOKEN_TTL: u64 = 3300;
 
 pub struct SpotifyExtractor {
     client_id: Option<String>,
     client_secret: Option<String>,
+    token_cache: Mutex<Option<(String, Instant)>>,
 }
 
 impl SpotifyExtractor {
@@ -11,6 +16,7 @@ impl SpotifyExtractor {
         Self {
             client_id,
             client_secret,
+            token_cache: Mutex::new(None),
         }
     }
 
@@ -148,10 +154,6 @@ impl SpotifyExtractor {
         Ok(items)
     }
 
-    pub async fn search_youtube_query(&self, track: &SpotifyTrackInfo) -> String {
-        format!("{} {} {}", track.name, track.artist, track.album)
-    }
-
     fn extract_track_id(&self, url: &str) -> Result<String> {
         let url = url.trim_end_matches('/');
         let parts: Vec<&str> = url.split('/').collect();
@@ -189,6 +191,12 @@ impl SpotifyExtractor {
     }
 
     async fn get_access_token(&self) -> Result<String> {
+        if let Some((token, expires_at)) = self.token_cache.lock().unwrap().as_ref() {
+            if Instant::now() < *expires_at {
+                return Ok(token.clone());
+            }
+        }
+
         let client_id = self
             .client_id
             .as_deref()
@@ -226,12 +234,16 @@ impl SpotifyExtractor {
                 reason: e.to_string(),
             })?;
 
-        data["access_token"]
+        let token = data["access_token"]
             .as_str()
             .map(|s| s.to_string())
             .ok_or_else(|| SourisError::DownloadFailed {
                 reason: "No access_token in response".into(),
-            })
+            })?;
+
+        *self.token_cache.lock().unwrap() = Some((token.clone(), Instant::now() + Duration::from_secs(TOKEN_TTL)));
+
+        Ok(token)
     }
 }
 

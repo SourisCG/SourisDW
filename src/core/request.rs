@@ -16,6 +16,8 @@ pub struct DownloadRequestBuilder {
     pub timeout: Option<u64>,
     pub max_retries: Option<u32>,
     pub auto_update: Option<bool>,
+    pub cookies_file: Option<String>,
+    pub cookies_from_browser: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +114,16 @@ impl DownloadRequestBuilder {
 
     pub fn auto_update(mut self, enabled: bool) -> Self {
         self.auto_update = Some(enabled);
+        self
+    }
+
+    pub fn cookies_file(mut self, path: impl Into<String>) -> Self {
+        self.cookies_file = Some(path.into());
+        self
+    }
+
+    pub fn cookies_from_browser(mut self, browser: impl Into<String>) -> Self {
+        self.cookies_from_browser = Some(browser.into());
         self
     }
 

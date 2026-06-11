@@ -50,6 +50,10 @@ enum Commands {
         audio_only: bool,
         #[arg(long)]
         video_only: bool,
+        #[arg(long)]
+        cookies: Option<String>,
+        #[arg(long)]
+        cookies_from_browser: Option<String>,
     },
     Info {
         url: String,
@@ -117,6 +121,8 @@ async fn main() {
             embed_subtitles,
             audio_only,
             video_only,
+            cookies,
+            cookies_from_browser,
         } => {
             handle_download(
                 &url,
@@ -129,6 +135,8 @@ async fn main() {
                 embed_subtitles,
                 audio_only,
                 video_only,
+                cookies.as_deref(),
+                cookies_from_browser.as_deref(),
                 cli.json,
                 cli.no_auto_update,
             )
@@ -179,6 +187,8 @@ async fn handle_download(
     embed_subtitles: bool,
     audio_only: bool,
     video_only: bool,
+    cookies: Option<&str>,
+    cookies_from_browser: Option<&str>,
     json: bool,
     no_auto_update: bool,
 ) -> Result<()> {
@@ -198,6 +208,14 @@ async fn handle_download(
 
     if let Some(p) = parallel {
         builder = builder.parallel(p);
+    }
+
+    if let Some(c) = cookies {
+        builder = builder.cookies_file(c);
+    }
+
+    if let Some(c) = cookies_from_browser {
+        builder = builder.cookies_from_browser(c);
     }
 
     builder = builder.embed_metadata(embed_metadata);
@@ -523,6 +541,26 @@ async fn handle_tui() -> Result<()> {
     use ratatui::prelude::*;
     use souris_dw::tui::{app::AppState, events, ui};
 
+    // Validate dependencies before entering TUI
+    let check_dw = souris_dw::SourisDW::builder()
+        .auto_update(false)
+        .build()
+        .await
+        .map_err(|e| {
+            eprintln!("Error: No se pudo inicializar SourisDW.");
+            eprintln!("Detalle: {}", e);
+            eprintln!("Ejecuta 'souris-dw update' para instalar dependencias faltantes.");
+            e
+        })?;
+    let deps_status = check_dw.update_check().await?;
+    for dep in &deps_status {
+        if !dep.installed {
+            eprintln!("Error: {} no esta instalado en {}", dep.name, dep.path);
+            eprintln!("Ejecuta 'souris-dw update' para instalar dependencias.");
+            std::process::exit(1);
+        }
+    }
+
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -638,7 +676,7 @@ async fn handle_tui() -> Result<()> {
 
                                 tokio::spawn(async move {
                                     let result = async {
-                                        let dw = souris_dw::SourisDW::builder()
+                                        let builder = souris_dw::SourisDW::builder()
                                             .auto_update(false)
                                             .yt_dlp_channel("stable")
                                             .spotify_credentials(
@@ -646,9 +684,14 @@ async fn handle_tui() -> Result<()> {
                                                     .unwrap_or_default(),
                                                 std::env::var("SOURIS_SPOTIFY_CLIENT_SECRET")
                                                     .unwrap_or_default(),
-                                            )
-                                            .build()
-                                            .await?;
+                                            );
+                                        let dw = match builder.build().await {
+                                            Ok(dw) => dw,
+                                            Err(e) => {
+                                                tracing::error!("Failed to build SourisDW: {}", e);
+                                                return Err(e);
+                                            }
+                                        };
 
                                         let _ = tx.send(TuiDownloadEvent::Started {
                                             index,

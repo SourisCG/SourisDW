@@ -143,6 +143,8 @@ impl YouTubeExtractor {
         embed_subtitles: bool,
         media_type: Option<&MediaTypeHint>,
         ffmpeg_path: Option<&std::path::Path>,
+        cookies_file: Option<&str>,
+        cookies_from_browser: Option<&str>,
     ) -> Result<DownloadResult> {
         let mut cmd = tokio::process::Command::new(self.yt_dlp.binary_path());
 
@@ -155,17 +157,42 @@ impl YouTubeExtractor {
             cmd.arg(ffmpeg);
         }
 
+        if let Some(cf) = cookies_file {
+            cmd.args(["--cookies", cf]);
+        }
+        if let Some(cb) = cookies_from_browser {
+            cmd.args(["--cookies-from-browser", cb]);
+        }
+
         let is_audio = matches!(media_type, Some(MediaTypeHint::Audio));
+
+        // Helper for audio bitrate filter
+        let abr_value = |q: &AudioQuality| -> Option<&str> {
+            match q {
+                AudioQuality::Kbps128 => Some("128"),
+                AudioQuality::Kbps192 => Some("192"),
+                AudioQuality::Kbps256 => Some("256"),
+                AudioQuality::Kbps320 => Some("320"),
+                AudioQuality::Lossless => None,
+            }
+        };
+
+        // Helper for video height filter
+        let height_value = |q: &VideoQuality| -> &str {
+            match q {
+                VideoQuality::P360 => "360",
+                VideoQuality::P480 => "480",
+                VideoQuality::P720 => "720",
+                VideoQuality::P1080 => "1080",
+                VideoQuality::P1440 => "1440",
+                VideoQuality::P4K => "2160",
+                VideoQuality::P8K => "4320",
+            }
+        };
 
         if is_audio {
             let abr = quality.and_then(|q| match q {
-                Quality::Audio(a) => match a {
-                    AudioQuality::Kbps128 => Some("128"),
-                    AudioQuality::Kbps192 => Some("192"),
-                    AudioQuality::Kbps256 => Some("256"),
-                    AudioQuality::Kbps320 => Some("320"),
-                    AudioQuality::Lossless => Some("0"),
-                },
+                Quality::Audio(a) => abr_value(a),
                 _ => None,
             });
             let format_str = if let Some(abr) = abr {
@@ -174,18 +201,18 @@ impl YouTubeExtractor {
                 "bestaudio".to_string()
             };
             cmd.args(["-f", &format_str]);
-            cmd.args(["-x", "--audio-format", "mp3"]);
+            let audio_fmt = format
+                .and_then(|f| match f {
+                    Format::Audio(af) => Some(af.to_string()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| "mp3".to_string());
+            cmd.args(["-x", "--audio-format", &audio_fmt]);
         } else if let Some(f) = format {
             let format_str = match f {
                 Format::Audio(_) => {
                     let abr = quality.and_then(|q| match q {
-                        Quality::Audio(a) => match a {
-                            AudioQuality::Kbps128 => Some("128"),
-                            AudioQuality::Kbps192 => Some("192"),
-                            AudioQuality::Kbps256 => Some("256"),
-                            AudioQuality::Kbps320 => Some("320"),
-                            AudioQuality::Lossless => Some("0"),
-                        },
+                        Quality::Audio(a) => abr_value(a),
                         _ => None,
                     });
                     if let Some(abr) = abr {
@@ -194,33 +221,28 @@ impl YouTubeExtractor {
                         "bestaudio".to_string()
                     }
                 }
-                Format::Video(_) => {
-                    let height = quality.and_then(|q| match q {
-                        Quality::Video(v) => match v {
-                            VideoQuality::P360 => Some("360"),
-                            VideoQuality::P480 => Some("480"),
-                            VideoQuality::P720 => Some("720"),
-                            VideoQuality::P1080 => Some("1080"),
-                            VideoQuality::P1440 => Some("1440"),
-                            VideoQuality::P4K => Some("2160"),
-                            VideoQuality::P8K => Some("4320"),
-                        },
+                Format::Video(vf) => {
+                    let h = quality.and_then(|q| match q {
+                        Quality::Video(v) => Some(height_value(v)),
                         _ => None,
-                    });
-                    if let Some(h) = height {
-                        format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
-                    } else {
-                        "bestvideo+bestaudio/best".to_string()
-                    }
+                    }).unwrap_or("1080");
+                    format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
                 }
             };
             cmd.args(["-f", &format_str]);
 
-            let is_audio = matches!(f, Format::Audio(_));
-            if is_audio {
+            if let Format::Video(vf) = f {
+                cmd.args(["--merge-output-format", &vf.to_string()]);
+            }
+            if let Format::Audio(_) = f {
                 cmd.args(["-x", "--audio-format", &f.to_string()]);
             }
+        } else {
+            // Default: best quality with format hint
+            cmd.args(["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]"]);
         }
+
+        cmd.args(["--socket-timeout", "30", "--retries", "10"]);
 
         let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
         cmd.args(["-o", &output_template]);
@@ -277,12 +299,17 @@ impl YouTubeExtractor {
         embed_subtitles: bool,
         parallel: usize,
         ffmpeg_path: Option<&std::path::Path>,
+        cookies_file: Option<&str>,
+        cookies_from_browser: Option<&str>,
     ) -> Result<Vec<DownloadResult>> {
         let items = self.extract_playlist_info(url).await?;
         let mut results = Vec::new();
 
         let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(parallel));
         let mut handles = Vec::new();
+
+        let cookies_file = cookies_file.map(|s| s.to_string());
+        let cookies_from_browser = cookies_from_browser.map(|s| s.to_string());
 
         for item in items {
             let permit = semaphore.clone().acquire_owned().await.unwrap();
@@ -292,6 +319,8 @@ impl YouTubeExtractor {
             let quality = quality.cloned();
             let output_dir = output_dir.to_string();
             let ffmpeg = ffmpeg_path.map(|p| p.to_path_buf());
+            let cf = cookies_file.clone();
+            let cb = cookies_from_browser.clone();
 
             handles.push(tokio::spawn(async move {
                 let result = Self::download_single(
@@ -304,6 +333,8 @@ impl YouTubeExtractor {
                     embed_thumbnail,
                     embed_subtitles,
                     ffmpeg.as_deref(),
+                    cf.as_deref(),
+                    cb.as_deref(),
                 )
                 .await;
                 drop(permit);
@@ -332,12 +363,14 @@ impl YouTubeExtractor {
         yt_dlp_path: &std::path::Path,
         url: &str,
         format: Option<&Format>,
-        _quality: Option<&Quality>,
+        quality: Option<&Quality>,
         output_dir: &str,
         embed_metadata: bool,
         embed_thumbnail: bool,
         embed_subtitles: bool,
         ffmpeg_path: Option<&std::path::Path>,
+        cookies_file: Option<&str>,
+        cookies_from_browser: Option<&str>,
     ) -> Result<DownloadResult> {
         let mut cmd = tokio::process::Command::new(yt_dlp_path);
 
@@ -350,18 +383,71 @@ impl YouTubeExtractor {
             cmd.arg(ffmpeg);
         }
 
+        if let Some(cf) = cookies_file {
+            cmd.args(["--cookies", cf]);
+        }
+        if let Some(cb) = cookies_from_browser {
+            cmd.args(["--cookies-from-browser", cb]);
+        }
+
+        let abr_value = |q: &AudioQuality| -> Option<&str> {
+            match q {
+                AudioQuality::Kbps128 => Some("128"),
+                AudioQuality::Kbps192 => Some("192"),
+                AudioQuality::Kbps256 => Some("256"),
+                AudioQuality::Kbps320 => Some("320"),
+                AudioQuality::Lossless => None,
+            }
+        };
+
+        let height_value = |q: &VideoQuality| -> &str {
+            match q {
+                VideoQuality::P360 => "360",
+                VideoQuality::P480 => "480",
+                VideoQuality::P720 => "720",
+                VideoQuality::P1080 => "1080",
+                VideoQuality::P1440 => "1440",
+                VideoQuality::P4K => "2160",
+                VideoQuality::P8K => "4320",
+            }
+        };
+
         if let Some(f) = format {
             let format_str = match f {
-                Format::Audio(_) => "bestaudio".to_string(),
-                Format::Video(_) => "bestvideo+bestaudio/best".to_string(),
+                Format::Audio(_) => {
+                    let abr = quality.and_then(|q| match q {
+                        Quality::Audio(a) => abr_value(a),
+                        _ => None,
+                    });
+                    if let Some(abr) = abr {
+                        format!("bestaudio[abr<={}]/bestaudio", abr)
+                    } else {
+                        "bestaudio".to_string()
+                    }
+                }
+                Format::Video(_) => {
+                    let h = quality
+                        .and_then(|q| match q {
+                            Quality::Video(v) => Some(height_value(v)),
+                            _ => None,
+                        })
+                        .unwrap_or("1080");
+                    format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                }
             };
             cmd.args(["-f", &format_str]);
 
-            let is_audio = matches!(f, Format::Audio(_));
-            if is_audio {
+            if let Format::Video(vf) = f {
+                cmd.args(["--merge-output-format", &vf.to_string()]);
+            }
+            if let Format::Audio(_) = f {
                 cmd.args(["-x", "--audio-format", &f.to_string()]);
             }
+        } else {
+            cmd.args(["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]"]);
         }
+
+        cmd.args(["--socket-timeout", "30", "--retries", "10"]);
 
         let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
         cmd.args(["-o", &output_template]);

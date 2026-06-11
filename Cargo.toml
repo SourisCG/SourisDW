@@ -1,6 +1,6 @@
 [package]
 name = "souris-dw"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Cross-platform music & video downloader for YouTube and Spotify"
 license = "MIT"
@@ -90,6 +90,13 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Async streams
 futures = "0.3"
+
+# Async trait support
+async-trait = "0.1"
+
+[build-dependencies]
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
+flate2 = "1"
 
 [dev-dependencies]
 tokio-test = "0.4"
