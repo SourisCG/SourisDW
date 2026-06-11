@@ -21,3 +21,6 @@ Thumbs.db
 # User files
 downloads/
 .opencode/
+
+# Downloaded release binary
+souris-dw.exe
