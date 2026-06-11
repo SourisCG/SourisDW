@@ -424,7 +424,10 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
                     &app.input_buffer,
                     Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
-                Span::styled("\u{2588}", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
+                Span::styled(
+            "\u{2588}",
+            Style::default().fg(SYNTHWAVE84_THEME.foreground),
+        ),
             ]),
         ),
         InputMode::Search => (
@@ -435,7 +438,10 @@ fn draw_input_area(f: &mut Frame, area: Rect, app: &AppState) {
                     &app.input_buffer,
                     Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
-                Span::styled("\u{2588}", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
+                Span::styled(
+            "\u{2588}",
+            Style::default().fg(SYNTHWAVE84_THEME.foreground),
+        ),
             ]),
         ),
     };
@@ -599,8 +605,14 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
             ),
         ]),
         Line::from(vec![
-            Span::styled("  d / Del", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
-            Span::styled("   Delete", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
+            Span::styled(
+                "  d / Del",
+                Style::default().fg(SYNTHWAVE84_THEME.highlight),
+            ),
+            Span::styled(
+                "   Delete",
+                Style::default().fg(SYNTHWAVE84_THEME.foreground),
+            ),
         ]),
         Line::from(""),
         Line::from(vec![Span::styled(
@@ -617,11 +629,17 @@ fn draw_help_overlay(f: &mut Frame, _app: &AppState) {
             ),
         ]),
         Line::from(vec![
-            Span::styled("  h / ?", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+            Span::styled(
+                "  h / ?",
+                Style::default().fg(SYNTHWAVE84_THEME.highlight),
+            ),
             Span::styled("     Help", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
         ]),
         Line::from(vec![
-            Span::styled("  q / Esc", Style::default().fg(SYNTHWAVE84_THEME.highlight)),
+            Span::styled(
+                "  q / Esc",
+                Style::default().fg(SYNTHWAVE84_THEME.highlight),
+            ),
             Span::styled(
                 "   Back / Quit",
                 Style::default().fg(SYNTHWAVE84_THEME.foreground),
@@ -737,7 +755,10 @@ fn draw_search_overlay(f: &mut Frame, app: &AppState) {
                 .fg(SYNTHWAVE84_THEME.foreground)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("\u{2588}", Style::default().fg(SYNTHWAVE84_THEME.foreground)),
+        Span::styled(
+            "\u{2588}",
+            Style::default().fg(SYNTHWAVE84_THEME.foreground),
+        ),
     ])));
 
     items.push(ListItem::new(Line::from("")));

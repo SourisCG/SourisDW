@@ -221,7 +221,7 @@ impl YouTubeExtractor {
                         "bestaudio".to_string()
                     }
                 }
-                Format::Video(vf) => {
+                Format::Video(_) => {
                     let h = quality.and_then(|q| match q {
                         Quality::Video(v) => Some(height_value(v)),
                         _ => None,

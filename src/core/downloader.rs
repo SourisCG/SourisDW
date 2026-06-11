@@ -49,6 +49,8 @@ impl SourisDWBuilder {
             on_progress: None,
             spotify_client_id: None,
             spotify_client_secret: None,
+            cookies_file: None,
+            cookies_from_browser: None,
         }
     }
 

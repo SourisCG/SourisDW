@@ -44,6 +44,8 @@ impl DownloadRequestBuilder {
             timeout: None,
             max_retries: None,
             auto_update: None,
+            cookies_file: None,
+            cookies_from_browser: None,
         }
     }
 
@@ -184,6 +186,8 @@ impl DownloadRequestBuilder {
                 timeout: None,
                 max_retries: None,
                 auto_update: None,
+                cookies_file: self.cookies_file,
+                cookies_from_browser: self.cookies_from_browser,
             })
             .await?;
         Ok(req)

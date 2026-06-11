@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     container: centos:7
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
           yum install -y git gcc
@@ -84,5 +84,4 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - uses: Swatinem/rust-cache@v2
       - run: cargo test
