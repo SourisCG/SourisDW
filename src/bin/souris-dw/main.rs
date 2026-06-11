@@ -1,9 +1,20 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+fn terminal_width() -> usize {
+    match crossterm::terminal::size() {
+        Ok((w, _)) => (w as usize).max(40),
+        Err(_) => 80,
+    }
+}
+
+fn wrap_text(text: &str) -> String {
+    textwrap::fill(text, terminal_width())
+}
+
 #[derive(Parser)]
 #[command(name = "souris-dw")]
-#[command(version = "0.1.0")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Cross-platform music & video downloader for YouTube and Spotify", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -99,6 +110,7 @@ enum ConfigAction {
 
 #[derive(Subcommand)]
 enum DepsAction {
+    Install,
     Status,
     Update,
 }
@@ -169,7 +181,7 @@ async fn main() {
             });
             println!("{}", serde_json::to_string(&error).unwrap());
         } else {
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {}", wrap_text(&e.to_string()));
         }
         std::process::exit(1);
     }
@@ -192,13 +204,17 @@ async fn handle_download(
     json: bool,
     no_auto_update: bool,
 ) -> Result<()> {
+    let config = souris_dw::AppConfig::load().ok();
+
     let mut builder = souris_dw::SourisDW::builder().auto_update(!no_auto_update);
 
-    if let Some(f) = format {
+    let fmt = format.or_else(|| config.as_ref().map(|c| c.download.default_format.as_str()));
+    if let Some(f) = fmt {
         builder = builder.format_str(f)?;
     }
 
-    if let Some(q) = quality {
+    let q = quality.or_else(|| config.as_ref().map(|c| c.download.default_quality.as_str()));
+    if let Some(q) = q {
         builder = builder.quality_str(q)?;
     }
 
@@ -255,7 +271,10 @@ async fn handle_download(
     } else if result.success {
         println!("Downloaded: {}", result.path.unwrap_or_default());
     } else {
-        eprintln!("Download failed: {}", result.error.unwrap_or_default());
+        eprintln!(
+            "Download failed: {}",
+            wrap_text(&result.error.unwrap_or_default())
+        );
     }
 
     Ok(())
@@ -322,12 +341,11 @@ async fn handle_update(
     check: bool,
     json: bool,
 ) -> Result<()> {
-    let dw = souris_dw::SourisDW::builder()
-        .auto_update(false)
-        .build()
-        .await;
-
     if check {
+        let dw = souris_dw::SourisDW::builder()
+            .auto_update(false)
+            .build()
+            .await;
         let status = dw.update_check().await?;
         if json {
             println!("{}", serde_json::to_string(&status)?);
@@ -344,6 +362,10 @@ async fn handle_update(
         return Ok(());
     }
 
+    let dw = souris_dw::SourisDW::builder()
+        .auto_update(false)
+        .build()
+        .await;
     let status = dw.update().await?;
 
     if json {
@@ -414,13 +436,64 @@ async fn handle_config(action: ConfigAction, json: bool) -> Result<()> {
 }
 
 async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
-    let dw = souris_dw::SourisDW::builder()
-        .auto_update(false)
-        .build()
-        .await;
-
     match action {
+        DepsAction::Install => {
+            if !json {
+                println!("SourisDW Dependency Installer");
+                println!("=============================");
+                println!();
+            }
+
+            let deps = souris_dw::DepManager::setup_blocking(false, "stable", json).await;
+
+            let bin_dir = souris_dw::deps::platform::bin_dir()
+                .unwrap_or_else(|| std::env::temp_dir().join("souris-dw").join("bin"));
+
+            if !json {
+                println!();
+                println!("Dependencies installed to: {}", bin_dir.display());
+                println!();
+                print!("Add {} to PATH? [Y/n]: ", bin_dir.display());
+                use std::io::Write;
+                std::io::stdout().flush()?;
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                let input = input.trim().to_lowercase();
+                if input.is_empty() || input == "y" || input == "yes" {
+                    match souris_dw::deps::path::add_to_path(&bin_dir) {
+                        Ok(_) => {
+                            println!("Added to PATH. Restart your shell or run: source ~/.bashrc")
+                        }
+                        Err(e) => eprintln!("Failed to add to PATH: {}", e),
+                    }
+                }
+
+                println!();
+                println!("All done! Run 'souris-dw tui' or 'souris-dw download <URL>' to start.");
+                println!();
+            }
+
+            let status = deps.status();
+            if json {
+                println!("{}", serde_json::to_string(&status)?);
+            } else {
+                for dep in &status {
+                    let status_icon = if dep.installed { "[x]" } else { "[ ]" };
+                    println!(
+                        "{} {} {} ({})",
+                        status_icon,
+                        dep.name,
+                        dep.version.as_deref().unwrap_or("not installed"),
+                        dep.path
+                    );
+                }
+            }
+        }
         DepsAction::Status => {
+            let dw = souris_dw::SourisDW::builder()
+                .auto_update(false)
+                .build()
+                .await;
             let status = dw.update_check().await?;
             if json {
                 println!("{}", serde_json::to_string(&status)?);
@@ -438,6 +511,10 @@ async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
             }
         }
         DepsAction::Update => {
+            let dw = souris_dw::SourisDW::builder()
+                .auto_update(false)
+                .build()
+                .await;
             let status = dw.update().await?;
             if json {
                 println!("{}", serde_json::to_string(&status)?);
@@ -458,6 +535,7 @@ async fn handle_deps(action: DepsAction, json: bool) -> Result<()> {
 
 async fn handle_uninstall(keep_config: bool, json: bool) -> Result<()> {
     let exe_path = std::env::current_exe()?;
+    let bin_dir = souris_dw::deps::platform::bin_dir();
 
     if json {
         println!(
@@ -473,9 +551,12 @@ async fn handle_uninstall(keep_config: bool, json: bool) -> Result<()> {
         println!("===================");
         println!();
         println!("Binary: {}", exe_path.display());
+        if let Some(ref dir) = bin_dir {
+            println!("Deps:   {}", dir.display());
+        }
 
         if !keep_config {
-            if let Some(config_dir) = directories::ProjectDirs::from("", "", "souris-dw") {
+            if let Some(config_dir) = directories::ProjectDirs::from("io", "souris", "souris-dw") {
                 let config_path = config_dir.config_dir();
                 let data_path = config_dir.data_dir();
                 println!("Config: {}", config_path.display());
@@ -487,6 +568,23 @@ async fn handle_uninstall(keep_config: bool, json: bool) -> Result<()> {
         println!();
     }
 
+    if !json {
+        if let Some(ref dir) = bin_dir {
+            print!("Remove {} from PATH? [Y/n]: ", dir.display());
+            use std::io::Write;
+            std::io::stdout().flush()?;
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            let input = input.trim().to_lowercase();
+            if input.is_empty() || input == "y" || input == "yes" {
+                match souris_dw::deps::path::remove_from_path(dir) {
+                    Ok(_) => println!("Removed from PATH."),
+                    Err(e) => eprintln!("Failed to remove from PATH: {}", e),
+                }
+            }
+        }
+    }
+
     fs_err::remove_file(&exe_path).map_err(|e| {
         souris_dw::SourisError::ConfigError(format!(
             "Failed to remove binary: {}. You may need to run with sudo.",
@@ -495,7 +593,7 @@ async fn handle_uninstall(keep_config: bool, json: bool) -> Result<()> {
     })?;
 
     if !keep_config {
-        if let Some(config_dir) = directories::ProjectDirs::from("", "", "souris-dw") {
+        if let Some(config_dir) = directories::ProjectDirs::from("io", "souris", "souris-dw") {
             let _ = fs_err::remove_dir_all(config_dir.config_dir());
             let _ = fs_err::remove_dir_all(config_dir.data_dir());
         }
@@ -541,7 +639,10 @@ async fn handle_tui() -> Result<()> {
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     };
     use ratatui::prelude::*;
-    use souris_dw::tui::{app::{AppState, SETTINGS_OPTIONS}, events, ui};
+    use souris_dw::tui::{
+        app::{AppState, SETTINGS_OPTIONS},
+        events, ui,
+    };
 
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -664,11 +765,14 @@ async fn handle_tui() -> Result<()> {
                             if app.show_settings {
                                 app.cycle_setting_value(app.settings_index);
                             } else if app.show_search && !app.search_results.is_empty() {
-                                if let Some(result) = app.search_results.get(app.search_index).cloned() {
+                                if let Some(result) =
+                                    app.search_results.get(app.search_index).cloned()
+                                {
                                     let title = result.title.clone();
                                     let url = result.url.clone();
                                     let platform = result.platform.clone();
-                                    let index = app.add_download(url.clone(), title, platform.clone());
+                                    let index =
+                                        app.add_download(url.clone(), title, platform.clone());
                                     app.toggle_search();
                                     app.status_message = Some("Starting download...".into());
 
@@ -754,7 +858,8 @@ async fn handle_tui() -> Result<()> {
                                     let result = async {
                                         let builder = souris_dw::SourisDW::builder()
                                             .auto_update(true)
-                                            .build().await;
+                                            .build()
+                                            .await;
                                         builder.search(&input_buf).await
                                     }
                                     .await;
@@ -917,17 +1022,19 @@ async fn handle_tui() -> Result<()> {
                             }
                         }
                         TuiEvent::SearchResults(results) => {
-                            app.search_results = results.into_iter().map(|r| {
-                                souris_dw::tui::app::SearchResult {
+                            app.search_results = results
+                                .into_iter()
+                                .map(|r| souris_dw::tui::app::SearchResult {
                                     title: r.title,
                                     url: r.url,
                                     platform: r.platform,
                                     duration: r.duration,
                                     selected: false,
-                                }
-                            }).collect();
+                                })
+                                .collect();
                             app.search_index = 0;
-                            app.status_message = Some(format!("Found {} results", app.search_results.len()));
+                            app.status_message =
+                                Some(format!("Found {} results", app.search_results.len()));
                         }
                         TuiEvent::SearchError(msg) => {
                             app.status_message = Some(format!("Search failed: {}", msg));

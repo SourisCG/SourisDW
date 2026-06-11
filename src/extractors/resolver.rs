@@ -1,5 +1,6 @@
 use crate::core::request::MediaTypeHint;
 use crate::core::types::*;
+use crate::deps::yt_dlp::YtDlp;
 use crate::error::{Result, SourisError};
 use crate::extractors::spotify::SpotifyExtractor;
 use crate::extractors::youtube::YouTubeExtractor;
@@ -27,10 +28,11 @@ pub struct Resolver {
 
 impl Resolver {
     pub async fn new(
+        yt_dlp: YtDlp,
         spotify_client_id: Option<String>,
         spotify_client_secret: Option<String>,
     ) -> Self {
-        let youtube = YouTubeExtractor::new().await;
+        let youtube = YouTubeExtractor::new(yt_dlp);
         let spotify = if spotify_client_id.is_some() && spotify_client_secret.is_some() {
             Some(SpotifyExtractor::new(
                 spotify_client_id,

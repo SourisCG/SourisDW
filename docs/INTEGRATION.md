@@ -13,20 +13,22 @@ SourisDW exposes all functionality via its CLI with `--json` output. Any languag
 | Command | Description | JSON Output |
 |---------|-------------|-------------|
 | `souris-dw download <URL> --json` | Download with streaming progress | Progress events + result |
+| `souris-dw download <URL> --json -f mp4 -q 1080p` | With format/quality options | Progress events + result |
 | `souris-dw info <URL> --json` | Get media info | Media info object |
 | `souris-dw search <query> --json` | Search | Array of results |
-| `souris-dw update --json --check` | Check updates | Status array |
-| `souris-dw update --json` | Update deps | Status array |
+| `souris-dw update --json` | Update all deps | Status array |
+| `souris-dw update --check --json` | Check updates only | Status array |
 | `souris-dw deps status --json` | Dep status | Status array |
+| `souris-dw deps install --json` | Install/refresh deps | Status array |
 
 ### Exit Codes
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success |
+| 0 | Success or cancelled by user |
 | 1 | General error |
-| 2 | Dependency error |
-| 3 | Network error |
+| 2 | Dependency error (missing binary, download failure) |
+| 3 | Network error or timeout |
 
 ### Progress Events (streamed, one per line)
 
@@ -52,9 +54,20 @@ SourisDW exposes all functionality via its CLI with `--json` output. Any languag
   "uploader": "Channel Name",
   "thumbnail": "https://...",
   "formats": [
-    {"format_id": "140", "ext": "m4a", "type": "audio", "acodec": "aac", "abr": 128},
-    {"format_id": "137", "ext": "mp4", "type": "video", "vcodec": "h264", "resolution": "1920x1080"}
+    {"format_id": "140", "ext": "m4a", "media_type": "audio", "acodec": "aac", "abr": 128},
+    {"format_id": "137", "ext": "mp4", "media_type": "video", "vcodec": "h264", "resolution": "1920x1080"}
   ]
+}
+```
+
+### DepStatus Object
+
+```json
+{
+  "name": "yt-dlp",
+  "installed": true,
+  "version": "2024.12.06",
+  "path": "/home/user/.local/share/souris-dw/bin/yt-dlp"
 }
 ```
 
@@ -106,7 +119,7 @@ func download(url string) (map[string]interface{}, error) {
     cmd := exec.Command("souris-dw", "download", url, "--json")
     stdout, _ := cmd.StdoutPipe()
     cmd.Start()
-    
+
     result := make(map[string]interface{})
     scanner := bufio.NewScanner(stdout)
     for scanner.Scan() {
@@ -177,7 +190,7 @@ To create a wrapper in any language:
 class SourisDWBuilder:
     def __init__(self):
         self._config = {"format": "mp4", "quality": "1080p", "output": "./downloads"}
-    
+
     def format(self, f): self._config["format"] = f; return self
     def quality(self, q): self._config["quality"] = q; return self
     def build(self): return SourisDW(self._config)
@@ -187,10 +200,10 @@ class DownloadRequest:
         self._dw = dw
         self._url = url
         self._overrides = {}
-    
+
     def format(self, f): self._overrides["format"] = f; return self
     def quality(self, q): self._overrides["quality"] = q; return self
-    
+
     def run(self):
         config = {**self._dw.config, **self._overrides}
         cmd = ["souris-dw", "download", self._url, "--json",

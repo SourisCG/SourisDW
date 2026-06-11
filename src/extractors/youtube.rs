@@ -3,14 +3,14 @@ use crate::core::types::*;
 use crate::deps::yt_dlp::YtDlp;
 use crate::error::{Result, SourisError};
 use serde_json::Value;
+use std::path::Path;
 
 pub struct YouTubeExtractor {
     yt_dlp: YtDlp,
 }
 
 impl YouTubeExtractor {
-    pub async fn new() -> Self {
-        let yt_dlp = YtDlp::ensure_installed("stable").await;
+    pub fn new(yt_dlp: YtDlp) -> Self {
         Self { yt_dlp }
     }
 
@@ -156,6 +156,9 @@ impl YouTubeExtractor {
 
         let is_audio = matches!(media_type, Some(MediaTypeHint::Audio));
 
+        // WAV 2-step deprecated: WAV can't embed thumbnails, so direct download is fine
+        let wav_2step = false;
+
         // Helper for audio bitrate filter
         let abr_value = |q: &AudioQuality| -> Option<&str> {
             match q {
@@ -191,12 +194,16 @@ impl YouTubeExtractor {
                 "bestaudio".to_string()
             };
             cmd.args(["-f", &format_str]);
-            let audio_fmt = format
-                .and_then(|f| match f {
-                    Format::Audio(af) => Some(af.to_string()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| "mp3".to_string());
+            let audio_fmt = if wav_2step {
+                "vorbis".to_string()
+            } else {
+                format
+                    .and_then(|f| match f {
+                        Format::Audio(af) => Some(af.yt_dlp_format().to_string()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| "mp3".to_string())
+            };
             cmd.args(["-x", "--audio-format", &audio_fmt]);
         } else if let Some(f) = format {
             let format_str = match f {
@@ -211,7 +218,7 @@ impl YouTubeExtractor {
                         "bestaudio".to_string()
                     }
                 }
-                Format::Video(_) => {
+                Format::Video(vf) => {
                     let h = quality
                         .and_then(|q| match q {
                             Quality::Video(v) => Some(height_value(v)),
@@ -219,7 +226,17 @@ impl YouTubeExtractor {
                         })
                         .unwrap_or("1080");
                     if ffmpeg_path.is_some() {
-                        format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                        match vf {
+                            VideoFormat::Mov => {
+                                format!("bestvideo[vcodec^=avc1][ext=mp4][height<={}]+bestaudio[ext=m4a]/best[height<={}]", h, h)
+                            }
+                            VideoFormat::Avi => {
+                                format!("bestvideo[ext=mp4][height<={}]+bestaudio[ext=m4a]/best[height<={}]", h, h)
+                            }
+                            _ => {
+                                format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                            }
+                        }
                     } else {
                         format!("best[height<={}]", h)
                     }
@@ -232,8 +249,13 @@ impl YouTubeExtractor {
                     cmd.args(["--merge-output-format", &vf.to_string()]);
                 }
             }
-            if let Format::Audio(_) = f {
-                cmd.args(["-x", "--audio-format", &f.to_string()]);
+            if let Format::Audio(af) = f {
+                let fmt = if wav_2step {
+                    "vorbis"
+                } else {
+                    af.yt_dlp_format()
+                };
+                cmd.args(["-x", "--audio-format", fmt]);
             }
         } else {
             if let Some(_ff) = ffmpeg_path {
@@ -247,12 +269,16 @@ impl YouTubeExtractor {
 
         let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
         cmd.args(["-o", &output_template]);
+        cmd.arg("--windows-filenames");
+        cmd.args(["--replace-in-metadata", "title", "\\.+$", ""]);
+
+        let thumbnail_ok = embed_thumbnail && format.is_none_or(|f| f.supports_thumbnail());
 
         if embed_metadata {
             cmd.args(["--embed-metadata"]);
         }
 
-        if embed_thumbnail {
+        if thumbnail_ok {
             cmd.args(["--embed-thumbnail"]);
         }
 
@@ -269,19 +295,156 @@ impl YouTubeExtractor {
                 reason: e.to_string(),
             })?;
 
-        if !output.status.success() {
+        let is_403 = |stderr: &str| stderr.contains("403") || stderr.contains("HTTP Error 403");
+
+        let output = if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(SourisError::DownloadFailed {
-                reason: stderr.to_string(),
-            });
-        }
+            if is_403(&stderr) {
+                // Retry with android client to bypass YouTube restrictions
+                let mut cmd2 = self.yt_dlp.command();
+                cmd2.args(["--newline", "--no-color"]);
+                cmd2.args(["--extractor-args", "youtube:player_client=android"]);
+
+                if let Some(ffmpeg) = ffmpeg_path {
+                    cmd2.args(["--ffmpeg-location", &ffmpeg.display().to_string()]);
+                }
+
+                if let Some(cf) = cookies_file {
+                    cmd2.args(["--cookies", cf]);
+                }
+                if let Some(cb) = cookies_from_browser {
+                    cmd2.args(["--cookies-from-browser", cb]);
+                }
+
+                // Re-apply format selection
+                if is_audio {
+                    let abr = quality.and_then(|q| match q {
+                        Quality::Audio(a) => abr_value(a),
+                        _ => None,
+                    });
+                    let format_str = if let Some(abr) = abr {
+                        format!("bestaudio[abr<={}]/bestaudio", abr)
+                    } else {
+                        "bestaudio".to_string()
+                    };
+                    cmd2.args(["-f", &format_str]);
+                    cmd2.args(["-x", "--audio-format", "mp3"]);
+                } else if let Some(f) = format {
+                    let format_str = match f {
+                        Format::Audio(_) => {
+                            let abr = quality.and_then(|q| match q {
+                                Quality::Audio(a) => abr_value(a),
+                                _ => None,
+                            });
+                            if let Some(abr) = abr {
+                                format!("bestaudio[abr<={}]/bestaudio", abr)
+                            } else {
+                                "bestaudio".to_string()
+                            }
+                        }
+                        Format::Video(_) => {
+                            let h = quality
+                                .and_then(|q| match q {
+                                    Quality::Video(v) => Some(height_value(v)),
+                                    _ => None,
+                                })
+                                .unwrap_or("1080");
+                            if ffmpeg_path.is_some() {
+                                format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                            } else {
+                                format!("best[height<={}]", h)
+                            }
+                        }
+                    };
+                    cmd2.args(["-f", &format_str]);
+                    if let Format::Video(vf) = f {
+                        if ffmpeg_path.is_some() {
+                            cmd2.args(["--merge-output-format", &vf.to_string()]);
+                        }
+                    }
+                    if let Format::Audio(af) = f {
+                        cmd2.args(["-x", "--audio-format", af.yt_dlp_format()]);
+                    }
+                } else {
+                    let ff = if ffmpeg_path.is_some() {
+                        "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+                    } else {
+                        "best[height<=1080]"
+                    };
+                    cmd2.args(["-f", ff]);
+                }
+
+                cmd2.args(["--socket-timeout", "30", "--retries", "10"]);
+                cmd2.args(["-o", &output_template]);
+                cmd2.arg("--windows-filenames");
+                cmd2.args(["--replace-in-metadata", "title", "\\.+$", ""]);
+
+                if embed_metadata {
+                    cmd2.arg("--embed-metadata");
+                }
+                if thumbnail_ok {
+                    cmd2.arg("--embed-thumbnail");
+                }
+                if embed_subtitles {
+                    cmd2.args(["--write-sub", "--write-auto-sub", "--sub-format", "vtt"]);
+                }
+
+                cmd2.arg(url);
+
+                cmd2.output()
+                    .await
+                    .map_err(|e| SourisError::DownloadFailed {
+                        reason: e.to_string(),
+                    })?
+            } else {
+                if thumbnail_ok {
+                    Self::cleanup_webp(output_dir);
+                }
+                return Err(SourisError::DownloadFailed {
+                    reason: stderr.to_string(),
+                });
+            }
+        } else {
+            output
+        };
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let downloaded_path = self.extract_downloaded_path(&stdout, output_dir);
+        let downloaded_path = Self::extract_downloaded_path_static(&stdout, output_dir);
+
+        // WAV 2-step: convert from ogg (with thumbnail) to wav
+        let final_path = if wav_2step {
+            let ogg_path = Path::new(&downloaded_path);
+            let wav_path = ogg_path.with_extension("wav");
+            if let Some(ffmpeg) = ffmpeg_path {
+                let convert = tokio::process::Command::new(ffmpeg)
+                    .args([
+                        "-i",
+                        &ogg_path.display().to_string(),
+                        "-y",
+                        &wav_path.display().to_string(),
+                    ])
+                    .output()
+                    .await;
+                match convert {
+                    Ok(status) if status.status.success() => {
+                        let _ = fs_err::remove_file(ogg_path);
+                        wav_path.display().to_string()
+                    }
+                    _ => {
+                        tracing::warn!("WAV conversion failed, keeping ogg file");
+                        downloaded_path
+                    }
+                }
+            } else {
+                downloaded_path
+            }
+        } else {
+            downloaded_path
+        };
 
         Ok(DownloadResult {
             success: true,
-            path: Some(downloaded_path),
+            path: Some(final_path),
             size: None,
             error: None,
             elapsed: None,
@@ -376,6 +539,9 @@ impl YouTubeExtractor {
         cookies_file: Option<&str>,
         cookies_from_browser: Option<&str>,
     ) -> Result<DownloadResult> {
+        // WAV 2-step deprecated: WAV can't embed thumbnails, direct download is fine
+        let wav_2step = false;
+
         let mut cmd = YtDlp::command_with(yt_dlp_path, deno_path);
 
         cmd.arg("--newline");
@@ -428,7 +594,7 @@ impl YouTubeExtractor {
                         "bestaudio".to_string()
                     }
                 }
-                Format::Video(_) => {
+                Format::Video(vf) => {
                     let h = quality
                         .and_then(|q| match q {
                             Quality::Video(v) => Some(height_value(v)),
@@ -436,7 +602,17 @@ impl YouTubeExtractor {
                         })
                         .unwrap_or("1080");
                     if ffmpeg_path.is_some() {
-                        format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                        match vf {
+                            VideoFormat::Mov => {
+                                format!("bestvideo[vcodec^=avc1][ext=mp4][height<={}]+bestaudio[ext=m4a]/best[height<={}]", h, h)
+                            }
+                            VideoFormat::Avi => {
+                                format!("bestvideo[ext=mp4][height<={}]+bestaudio[ext=m4a]/best[height<={}]", h, h)
+                            }
+                            _ => {
+                                format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                            }
+                        }
                     } else {
                         format!("best[height<={}]", h)
                     }
@@ -449,8 +625,13 @@ impl YouTubeExtractor {
                     cmd.args(["--merge-output-format", &vf.to_string()]);
                 }
             }
-            if let Format::Audio(_) = f {
-                cmd.args(["-x", "--audio-format", &f.to_string()]);
+            if let Format::Audio(af) = f {
+                let fmt = if wav_2step {
+                    "vorbis"
+                } else {
+                    af.yt_dlp_format()
+                };
+                cmd.args(["-x", "--audio-format", fmt]);
             }
         } else {
             if ffmpeg_path.is_some() {
@@ -464,12 +645,16 @@ impl YouTubeExtractor {
 
         let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
         cmd.args(["-o", &output_template]);
+        cmd.arg("--windows-filenames");
+        cmd.args(["--replace-in-metadata", "title", "\\.+$", ""]);
+
+        let thumbnail_ok = embed_thumbnail && format.is_none_or(|f| f.supports_thumbnail());
 
         if embed_metadata {
             cmd.args(["--embed-metadata"]);
         }
 
-        if embed_thumbnail {
+        if thumbnail_ok {
             cmd.args(["--embed-thumbnail"]);
         }
 
@@ -486,11 +671,130 @@ impl YouTubeExtractor {
                 reason: e.to_string(),
             })?;
 
-        if !output.status.success() {
+        let is_403 = |stderr: &str| stderr.contains("403") || stderr.contains("HTTP Error 403");
+
+        let output = if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(SourisError::DownloadFailed {
-                reason: stderr.to_string(),
-            });
+            if is_403(&stderr) {
+                let mut cmd2 = YtDlp::command_with(yt_dlp_path, deno_path);
+                cmd2.args(["--newline", "--no-color"]);
+                cmd2.args(["--extractor-args", "youtube:player_client=android"]);
+
+                if let Some(ffmpeg) = ffmpeg_path {
+                    cmd2.args(["--ffmpeg-location", &ffmpeg.display().to_string()]);
+                }
+
+                if let Some(cf) = cookies_file {
+                    cmd2.args(["--cookies", cf]);
+                }
+                if let Some(cb) = cookies_from_browser {
+                    cmd2.args(["--cookies-from-browser", cb]);
+                }
+
+                if let Some(f) = format {
+                    let format_str = match f {
+                        Format::Audio(_) => {
+                            let abr = quality.and_then(|q| match q {
+                                Quality::Audio(a) => abr_value(a),
+                                _ => None,
+                            });
+                            if let Some(abr) = abr {
+                                format!("bestaudio[abr<={}]/bestaudio", abr)
+                            } else {
+                                "bestaudio".to_string()
+                            }
+                        }
+                        Format::Video(_) => {
+                            let h = quality
+                                .and_then(|q| match q {
+                                    Quality::Video(v) => Some(height_value(v)),
+                                    _ => None,
+                                })
+                                .unwrap_or("1080");
+                            if ffmpeg_path.is_some() {
+                                format!("bestvideo[height<={}]+bestaudio/best[height<={}]", h, h)
+                            } else {
+                                format!("best[height<={}]", h)
+                            }
+                        }
+                    };
+                    cmd2.args(["-f", &format_str]);
+                    if let Format::Video(vf) = f {
+                        if ffmpeg_path.is_some() {
+                            cmd2.args(["--merge-output-format", &vf.to_string()]);
+                        }
+                    }
+                    if let Format::Audio(af) = f {
+                        cmd2.args(["-x", "--audio-format", af.yt_dlp_format()]);
+                    }
+                } else {
+                    let ff = if ffmpeg_path.is_some() {
+                        "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+                    } else {
+                        "best[height<=1080]"
+                    };
+                    cmd2.args(["-f", ff]);
+                }
+
+                cmd2.args(["--socket-timeout", "30", "--retries", "10"]);
+                cmd2.args(["-o", &output_template]);
+                cmd2.arg("--windows-filenames");
+                cmd2.args(["--replace-in-metadata", "title", "\\.+$", ""]);
+
+                if embed_metadata {
+                    cmd2.arg("--embed-metadata");
+                }
+                if thumbnail_ok {
+                    cmd2.arg("--embed-thumbnail");
+                }
+                if embed_subtitles {
+                    cmd2.args(["--write-sub", "--write-auto-sub", "--sub-format", "vtt"]);
+                }
+
+                cmd2.arg(url);
+
+                cmd2.output()
+                    .await
+                    .map_err(|e| SourisError::DownloadFailed {
+                        reason: e.to_string(),
+                    })?
+            } else {
+                if thumbnail_ok {
+                    YouTubeExtractor::cleanup_webp(output_dir);
+                }
+                return Err(SourisError::DownloadFailed {
+                    reason: stderr.to_string(),
+                });
+            }
+        } else {
+            output
+        };
+
+        // WAV 2-step for playlist items
+        if wav_2step {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let ogg_path_str =
+                YouTubeExtractor::extract_downloaded_path_static(&stdout, output_dir);
+            let ogg_path = Path::new(&ogg_path_str);
+            if ogg_path.exists() {
+                let wav_path = ogg_path.with_extension("wav");
+                if let Some(ffmpeg) = ffmpeg_path {
+                    let convert = tokio::process::Command::new(ffmpeg)
+                        .args([
+                            "-i",
+                            &ogg_path.display().to_string(),
+                            "-y",
+                            &wav_path.display().to_string(),
+                        ])
+                        .output()
+                        .await;
+                    if let Ok(status) = convert {
+                        if status.status.success() {
+                            let _ = fs_err::remove_file(ogg_path);
+                        }
+                    }
+                }
+            }
         }
 
         Ok(DownloadResult {
@@ -587,20 +891,37 @@ impl YouTubeExtractor {
         })
     }
 
-    fn extract_downloaded_path(&self, stdout: &str, output_dir: &str) -> String {
+    fn extract_downloaded_path_static(stdout: &str, output_dir: &str) -> String {
+        let mut fallback = format!("{}/unknown", output_dir);
         for line in stdout.lines() {
-            if line.starts_with("[download]") && line.contains("Destination:") {
+            // Post-processing destination takes priority (final file after conversion)
+            if line.contains("Destination:") {
                 if let Some(path) = line.split("Destination:").nth(1) {
-                    return path.trim().to_string();
+                    let p = path.trim().to_string();
+                    if !p.ends_with(".webm") && !p.ends_with(".m4a") {
+                        return p;
+                    }
+                    fallback = p;
                 }
             }
             if line.starts_with("[download]") && line.contains("has already been downloaded") {
                 if let Some(path) = line.split("has already been downloaded").next() {
-                    let path = path.replace("[download]", "").trim().to_string();
-                    return path;
+                    return path.replace("[download]", "").trim().to_string();
                 }
             }
         }
-        format!("{}/unknown", output_dir)
+        fallback
+    }
+
+    /// Clean up orphan .webp files left by yt-dlp when thumbnail embedding fails.
+    fn cleanup_webp(output_dir: &str) {
+        if let Ok(entries) = std::fs::read_dir(output_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|e| e == "webp") {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+        }
     }
 }

@@ -538,19 +538,23 @@ fn draw_error_overlay(f: &mut Frame, app: &AppState) {
 
     f.render_widget(Clear, area);
 
-    let error_text = match &app.error_message {
-        Some(msg) => {
-            let lines: Vec<Line> = msg
-                .lines()
-                .map(|l| {
-                    Line::from(vec![Span::styled(
-                        l,
-                        Style::default().fg(SYNTHWAVE84_THEME.foreground),
-                    )])
-                })
-                .collect();
-            lines
-        }
+    // Wrap long lines to fit the popup (accounting for 2-char border)
+    let wrap_at = area.width.saturating_sub(2).max(40) as usize;
+
+    let wrapped_msg = app
+        .error_message
+        .as_ref()
+        .map(|msg| textwrap::fill(msg, wrap_at));
+    let error_text: Vec<Line> = match &wrapped_msg {
+        Some(wrapped) => wrapped
+            .lines()
+            .map(|l| {
+                Line::from(vec![Span::styled(
+                    l.to_string(),
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
+                )])
+            })
+            .collect(),
         None => vec![Line::from(vec![Span::styled(
             "No error details",
             Style::default().fg(SYNTHWAVE84_THEME.subtitle),

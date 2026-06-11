@@ -8,7 +8,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-souris-dw = "0.1.0"
+souris-dw = "0.3.3"
 ```
 
 ## Quick Start
@@ -39,12 +39,13 @@ The builder configures default values for all downloads:
 use souris_dw::SourisDW;
 
 let dw = SourisDW::builder()
-    .auto_update(true)           // Auto-update yt-dlp
+    .auto_update(true)           // Auto-update yt-dlp/ffmpeg/deno
+    .yt_dlp_channel("stable")    // yt-dlp channel: stable, nightly, master
     .format("mp4")               // Default format
     .quality("1080p")            // Default quality
     .output("./downloads")       // Default output directory
     .parallel(4)                 // Parallel downloads
-    .embed_metadata(true)        // Embed ID3 tags
+    .embed_metadata(true)        // Embed ID3/metadata tags
     .embed_thumbnail(true)       // Embed album art
     .embed_subtitles(false)      // Embed subtitles
     .timeout(300)                // Timeout in seconds
@@ -53,25 +54,57 @@ let dw = SourisDW::builder()
         "client_id".to_string(),
         "client_secret".to_string(),
     )
+    .cookies_file("cookies.txt") // Cookies file (optional)
+    .cookies_from_browser(       // Browser cookies (optional)
+        "firefox".to_string(),
+    )
     .build()
     .await?;
 ```
 
+### Builder Methods
+
+| Method | Type | Default | Description |
+|--------|------|---------|-------------|
+| `auto_update(bool)` | bool | true | Auto-update dependencies |
+| `yt_dlp_channel(string)` | string | "stable" | yt-dlp update channel |
+| `format(impl Into<Format>)` | Format | Video(Mp4) | Default output format |
+| `format_str(&str)` | string | "mp4" | Format from string |
+| `quality(impl Into<Quality>)` | Quality | Video(P1080) | Default quality |
+| `quality_str(&str)` | string | "1080p" | Quality from string |
+| `output(impl Into<PathBuf>)` | Path | "./downloads" | Output directory |
+| `parallel(usize)` | number | 4 | Parallel downloads |
+| `embed_metadata(bool)` | bool | true | Embed metadata tags |
+| `embed_thumbnail(bool)` | bool | true | Embed album art |
+| `embed_subtitles(bool)` | bool | false | Embed subtitles |
+| `timeout(u64)` | seconds | 300 | Download timeout |
+| `max_retries(u32)` | number | 3 | Max retries |
+| `on_progress(ProgressSender)` | channel | None | Progress callback |
+| `spotify_credentials(id, secret)` | string | None | Spotify API keys |
+| `cookies_file(string)` | string | None | Cookies file path |
+| `cookies_from_browser(string)` | string | None | Browser name |
+
 ## Fluent Download API
 
-Each download method returns a chainable request:
+Each download method returns a chainable `DownloadRequestBuilder`:
 
 ```rust
 // Download with defaults
 dw.download("URL").await?;
 
-// Download audio with overrides
+// Download with format and quality overrides
+dw.download("URL")
+    .format("mp3")
+    .quality("lossless")
+    .await?;
+
+// Download audio (hints media type)
 dw.download_audio("URL")
     .format("flac")
     .quality("lossless")
     .await?;
 
-// Download video with overrides
+// Download video
 dw.download_video("URL")
     .format("mkv")
     .quality("4K")
@@ -83,6 +116,55 @@ dw.download_playlist("PLAYLIST_URL")
     .parallel(8)
     .format("mp3")
     .await?;
+
+// Using format_str and quality_str for dynamic input
+dw.download("URL")
+    .format_str("mp4")?     // Parse from user input
+    .quality_str("4K")?     // Parse from user input
+    .await?;
+
+// With cookies
+dw.download("URL")
+    .cookies_file("cookies.txt")
+    .cookies_from_browser("firefox")
+    .await?;
+```
+
+### DownloadRequestBuilder Methods
+
+| Method | Description |
+|--------|-------------|
+| `format(impl Into<Format>)` | Override output format |
+| `format_str(&str)` | Parse format from string |
+| `quality(impl Into<Quality>)` | Override quality |
+| `quality_str(&str)` | Parse quality from string |
+| `output(impl Into<PathBuf>)` | Override output directory |
+| `parallel(usize)` | Override parallel count |
+| `embed_metadata(bool)` | Override metadata embedding |
+| `embed_thumbnail(bool)` | Override thumbnail embedding |
+| `embed_subtitles(bool)` | Override subtitle embedding |
+| `timeout(u64)` | Override timeout |
+| `max_retries(u32)` | Override max retries |
+| `auto_update(bool)` | Override auto-update |
+| `cookies_file(string)` | Override cookies file |
+| `cookies_from_browser(string)` | Override browser cookies |
+| `run()` | Execute download directly (without SourisDW) |
+
+## Direct Execution
+
+`DownloadRequestBuilder` can be executed directly without a pre-built `SourisDW`:
+
+```rust
+use souris_dw::core::request::DownloadRequestBuilder;
+
+let result = DownloadRequestBuilder::new("https://youtube.com/watch?v=xxx")
+    .format("mp4")
+    .quality("1080p")
+    .output("./downloads")
+    .run()
+    .await?;
+
+println!("Downloaded: {:?}", result.path);
 ```
 
 ## Info & Search
@@ -146,6 +228,16 @@ for dep in &status {
 
 // Update all dependencies
 let updated = dw.update().await?;
+
+// Using DepManager directly
+use souris_dw::DepManager;
+
+// Setup with auto-update
+let deps = DepManager::setup(true, "stable").await;
+println!("yt-dlp: {}", deps.yt_dlp().binary_path().display());
+
+// Check status
+let status = deps.status();
 ```
 
 ## Configuration
@@ -153,7 +245,7 @@ let updated = dw.update().await?;
 ```rust
 use souris_dw::AppConfig;
 
-// Load config
+// Load config (creates default if not exists)
 let config = AppConfig::load()?;
 
 // Get a value
@@ -164,6 +256,21 @@ if let Some(fmt) = config.get("download.default_format") {
 // Set a value
 let mut config = AppConfig::load()?;
 config.set("download.default_format", "mp3")?;
+config.flush()?;    // Save to disk
+
+// Supported keys:
+// - yt_dlp.auto_update
+// - yt_dlp.channel
+// - ffmpeg.auto_update
+// - download.default_format
+// - download.default_quality
+// - download.output_dir
+// - download.parallel
+// - download.embed_metadata
+// - download.embed_thumbnail
+// - download.embed_subtitles
+// - download.timeout
+// - download.max_retries
 ```
 
 ## Error Handling
@@ -178,6 +285,15 @@ match dw.download("URL").await {
     }
     Err(SourisError::DependencyNotFound { name }) => {
         eprintln!("Missing dependency: {}", name);
+    }
+    Err(SourisError::DependencyDownloadFailed { name, reason }) => {
+        eprintln!("Failed to download {}: {}", name, reason);
+    }
+    Err(SourisError::Timeout { seconds }) => {
+        eprintln!("Timeout after {}s", seconds);
+    }
+    Err(SourisError::Cancelled) => {
+        println!("Cancelled by user");
     }
     Err(e) => {
         eprintln!("Error: {}", e);
@@ -198,10 +314,17 @@ MediaType::Playlist
 // Audio formats
 Format::Audio(AudioFormat::Mp3)
 Format::Audio(AudioFormat::Flac)
+Format::Audio(AudioFormat::Aac)
+Format::Audio(AudioFormat::Ogg)
+Format::Audio(AudioFormat::M4a)
+Format::Audio(AudioFormat::Wav)
 
 // Video formats
 Format::Video(VideoFormat::Mp4)
 Format::Video(VideoFormat::Mkv)
+Format::Video(VideoFormat::Webm)
+Format::Video(VideoFormat::Avi)
+Format::Video(VideoFormat::Mov)
 
 // Audio quality
 Quality::Audio(AudioQuality::Kbps128)

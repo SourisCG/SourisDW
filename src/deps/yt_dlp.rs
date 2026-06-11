@@ -1,9 +1,10 @@
+use crate::deps::download;
 use crate::deps::platform;
-use crate::utils::fs;
 use std::path::{Path, PathBuf};
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+#[derive(Clone)]
 pub struct YtDlp {
     binary_path: PathBuf,
     version: Option<String>,
@@ -54,6 +55,48 @@ impl YtDlp {
         }
     }
 
+    pub async fn ensure_installed_blocking(channel: &str, quiet: bool) -> Self {
+        let binary_name = platform::yt_dlp_binary_name();
+        let deno_name = platform::deno_binary_name();
+
+        let bin_dir = platform::bin_dir()
+            .unwrap_or_else(|| std::env::temp_dir().join("souris-dw").join("bin"));
+        let binary_path = bin_dir.join(&binary_name);
+        let deno_path = bin_dir.join(&deno_name);
+
+        // Always re-download fresh copy (deps install = refresh)
+        if binary_path.exists() {
+            let _ = fs_err::remove_file(&binary_path);
+        }
+
+        let url = platform::yt_dlp_download_url(channel);
+        if download::download_binary(&url, &binary_path, "yt-dlp", quiet)
+            .await
+            .is_err()
+        {
+            return Self::unavailable(channel);
+        }
+
+        let version = Self::get_version_blocking(&binary_path).ok();
+        if version.is_none() {
+            let _ = fs_err::remove_file(&binary_path);
+            return Self::unavailable(channel);
+        }
+
+        let dp = if deno_path.exists() {
+            Some(deno_path)
+        } else {
+            which::which(&deno_name).ok()
+        };
+
+        Self {
+            binary_path,
+            version,
+            channel: channel.to_string(),
+            deno_path: dp,
+        }
+    }
+
     pub async fn ensure_installed(channel: &str) -> Self {
         let binary_name = platform::yt_dlp_binary_name();
         let deno_name = platform::deno_binary_name();
@@ -90,44 +133,13 @@ impl YtDlp {
         let deno_path = bin_dir.join(&deno_name);
         let url = platform::yt_dlp_download_url(channel);
 
-        let _ = fs::ensure_dir(bin_dir);
-
-        tracing::info!("Downloading yt-dlp (channel: {}) from: {}", channel, url);
-
-        let client = match reqwest::Client::builder().user_agent(USER_AGENT).build() {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Failed to create HTTP client: {}", e);
-                return Self::unavailable(channel);
-            }
-        };
-
-        let response = match client.get(&url).send().await {
-            Ok(r) => r,
+        match download::download_binary(&url, &binary_path, "yt-dlp", false).await {
+            Ok(_) => {}
             Err(e) => {
                 tracing::warn!("Failed to download yt-dlp: {}", e);
                 return Self::unavailable(channel);
             }
-        };
-
-        if !response.status().is_success() {
-            tracing::warn!("Failed to download yt-dlp: HTTP {}", response.status());
-            return Self::unavailable(channel);
         }
-
-        let bytes = match response.bytes().await {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!("Failed to read yt-dlp response: {}", e);
-                return Self::unavailable(channel);
-            }
-        };
-
-        if let Err(e) = fs_err::write(&binary_path, &bytes) {
-            tracing::warn!("Failed to write yt-dlp binary: {}", e);
-            return Self::unavailable(channel);
-        }
-        let _ = fs::set_executable(&binary_path);
 
         let version = match Self::get_version(&binary_path).await {
             Ok(v) => Some(v),
@@ -185,6 +197,21 @@ impl YtDlp {
             tracing::warn!("Failed to update yt-dlp");
             None
         }
+    }
+
+    fn get_version_blocking(binary_path: &Path) -> crate::error::Result<String> {
+        let output = std::process::Command::new(binary_path)
+            .arg("--version")
+            .output()
+            .map_err(|e| crate::error::SourisError::io(binary_path, e))?;
+
+        let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if version.is_empty() {
+            return Err(crate::error::SourisError::DependencyNotFound {
+                name: "yt-dlp".into(),
+            });
+        }
+        Ok(version)
     }
 
     async fn get_version(binary_path: &Path) -> crate::error::Result<String> {

@@ -47,10 +47,10 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             yt_dlp: YtDlpConfig {
-                auto_update: true,
+                auto_update: false,
                 channel: "stable".to_string(),
             },
-            ffmpeg: FFmpegConfig { auto_update: true },
+            ffmpeg: FFmpegConfig { auto_update: false },
             download: DownloadConfig {
                 default_format: "mp4".to_string(),
                 default_quality: "1080p".to_string(),

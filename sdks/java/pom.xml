@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>SourisDW</name>
-    <description>Cross-platform music & video downloader for YouTube and Spotify</description>
+    <description>Cross-platform music &amp; video downloader for YouTube and Spotify</description>
     <url>https://github.com/souris/souris-dw</url>
 
     <licenses>

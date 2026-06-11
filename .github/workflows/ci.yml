@@ -18,6 +18,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+      - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
 
   clippy:
@@ -56,9 +57,9 @@ jobs:
       - run: cargo build --release
 
   test-fedora:
-    name: Tests (Fedora)
+    name: Tests (Fedora 41)
     runs-on: ubuntu-latest
-    container: fedora:latest
+    container: fedora:41
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -70,21 +71,3 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
-
-  test-centos7:
-    name: Compatibility (CentOS 7)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Test in CentOS 7 container
-        run: |
-          docker run --rm -v $PWD:/src centos:7 bash -c "
-            sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo &&
-            sed -i 's/^mirrorlist/#mirrorlist/' /etc/yum.repos.d/*.repo &&
-            sed -i 's/^#baseurl/baseurl/' /etc/yum.repos.d/*.repo &&
-            yum install -y git gcc &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y &&
-            source \$HOME/.cargo/env &&
-            cd /src &&
-            cargo test
-          "

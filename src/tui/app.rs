@@ -457,7 +457,7 @@ impl Default for AppConfigState {
             parallel: 4,
             embed_metadata: true,
             embed_thumbnail: true,
-            auto_update: true,
+            auto_update: false,
             audio_only: false,
             audio_format: "mp3".to_string(),
         }

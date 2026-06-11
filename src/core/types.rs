@@ -58,6 +58,45 @@ pub enum Quality {
     Video(VideoQuality),
 }
 
+impl AudioFormat {
+    /// Returns the format name yt-dlp expects.
+    /// yt-dlp uses "vorbis" instead of "ogg" for --audio-format.
+    pub fn yt_dlp_format(&self) -> &'static str {
+        match self {
+            AudioFormat::Mp3 => "mp3",
+            AudioFormat::Flac => "flac",
+            AudioFormat::Aac => "aac",
+            AudioFormat::Ogg => "vorbis",
+            AudioFormat::M4a => "m4a",
+            AudioFormat::Wav => "wav",
+        }
+    }
+
+    /// Whether yt-dlp/ffmpeg support embedding thumbnails into this format.
+    /// WAV containers do not support metadata/thumbnail embedding.
+    pub fn supports_thumbnail(&self) -> bool {
+        !matches!(self, AudioFormat::Wav)
+    }
+}
+
+impl VideoFormat {
+    /// Whether yt-dlp/ffmpeg support embedding thumbnails into this format.
+    /// AVI and WebM containers do not support thumbnail embedding.
+    pub fn supports_thumbnail(&self) -> bool {
+        !matches!(self, VideoFormat::Avi | VideoFormat::Webm)
+    }
+}
+
+impl Format {
+    /// Whether yt-dlp/ffmpeg support embedding thumbnails into this format.
+    pub fn supports_thumbnail(&self) -> bool {
+        match self {
+            Format::Audio(a) => a.supports_thumbnail(),
+            Format::Video(v) => v.supports_thumbnail(),
+        }
+    }
+}
+
 impl std::fmt::Display for AudioFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

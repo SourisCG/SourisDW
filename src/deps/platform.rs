@@ -130,6 +130,15 @@ pub fn deno_binary_name() -> String {
     }
 }
 
+pub fn ffprobe_binary_name() -> String {
+    let os = current_os();
+    let ext = exe_extension();
+    match os {
+        Os::Windows => format!("ffprobe{}", ext),
+        _ => "ffprobe".to_string(),
+    }
+}
+
 pub fn yt_dlp_release_filename() -> &'static str {
     let os = current_os();
     let arch = current_arch();

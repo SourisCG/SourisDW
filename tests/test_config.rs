@@ -30,7 +30,7 @@ fn test_config_get_known_keys() {
         config.get("download.embed_metadata"),
         Some("true".to_string())
     );
-    assert_eq!(config.get("yt_dlp.auto_update"), Some("true".to_string()));
+    assert_eq!(config.get("yt_dlp.auto_update"), Some("false".to_string()));
     assert_eq!(config.get("yt_dlp.channel"), Some("stable".to_string()));
 }
 

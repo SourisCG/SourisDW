@@ -13,6 +13,8 @@ pub use core::progress::{ProgressEvent, ProgressReceiver, ProgressSender};
 pub use core::request::DownloadRequestBuilder;
 pub use core::types::*;
 pub use deps::deno::Deno;
+pub use deps::ffmpeg::FFmpeg;
+pub use deps::yt_dlp::YtDlp;
 pub use deps::DepManager;
 pub use deps::DepStatus;
 pub use error::{Result, SourisError};

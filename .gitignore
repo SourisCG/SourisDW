@@ -25,3 +25,10 @@ downloads/
 # Downloaded release binary
 souris-dw.exe
 souris-dw-windows-x86_64.exe
+
+# Build artifacts (all levels)
+**/target/
+**/__pycache__/
+*.pyc
+*.class
+*.jar

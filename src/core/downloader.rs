@@ -140,10 +140,15 @@ impl SourisDWBuilder {
         self
     }
 
+    pub async fn setup() {
+        DepManager::setup(false, "stable").await;
+    }
+
     pub async fn build(self) -> SourisDW {
-        let deps = DepManager::new(self.auto_update, &self.yt_dlp_channel).await;
+        let deps = DepManager::build(self.auto_update, &self.yt_dlp_channel).await;
 
         let resolver = Resolver::new(
+            deps.yt_dlp().clone(),
             self.spotify_client_id.clone(),
             self.spotify_client_secret.clone(),
         )

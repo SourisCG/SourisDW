@@ -4,18 +4,20 @@
 
 | Platform | Architecture | Binary |
 |----------|-------------|--------|
-| Linux | x86_64 | `souris-dw-linux-x86_64` |
-| Linux (Fedora/RHEL) | x86_64 | `souris-dw-linux-x86_64-fedora` |
-| Linux | x86_64 (musl) | `souris-dw-linux-x86_64-musl` |
-| Linux | aarch64 | `souris-dw-linux-aarch64` |
+| Linux | x86_64 (musl) | `souris-dw-linux-x86_64` |
+| Linux | x86_64 (glibc) | `souris-dw-linux-x86_64-glibc` |
+| Linux | x86_64 (Fedora) | `souris-dw-linux-x86_64-fedora` |
+| Linux | aarch64 (musl) | `souris-dw-linux-aarch64` |
+| Linux | aarch64 (glibc) | `souris-dw-linux-aarch64-glibc` |
 | macOS | x86_64 | `souris-dw-macos-x86_64` |
 | macOS | aarch64 | `souris-dw-macos-aarch64` |
 | Windows | x86_64 | `souris-dw-windows-x86_64.exe` |
+| Windows | aarch64 | `souris-dw-windows-arm64.exe` |
 
 **Binary compatibility:**
-- `souris-dw-linux-x86_64` - Built on Ubuntu, works on Ubuntu/Debian and similar
-- `souris-dw-linux-x86_64-fedora` - Built natively on Fedora, works on Fedora/RHEL/CentOS
-- `souris-dw-linux-x86_64-musl` - Statically linked, works on ANY Linux distro (universal fallback)
+- `souris-dw-linux-x86_64` - Statically linked with musl, works on ALL Linux distros. This is the primary Linux binary.
+- `souris-dw-linux-x86_64-glibc` - glibc-linked, built on Ubuntu. Works on Ubuntu/Debian and similar glibc-based distros.
+- `souris-dw-linux-x86_64-fedora` - Built natively on Fedora 41. Works on Fedora/RHEL/CentOS with newer glibc.
 
 ## File System Differences
 
@@ -64,7 +66,7 @@ These paths are determined using the `directories` crate which follows platform 
 
 ## Binary Paths
 
-yt-dlp and ffmpeg binaries are stored in:
+yt-dlp, ffmpeg, ffprobe, and deno binaries are stored in:
 
 | Platform | Path |
 |----------|------|
@@ -97,7 +99,7 @@ SourisDW sets executable permission on Unix after downloading binaries using `#[
 | Platform | Filename Encoding | Notes |
 |----------|------------------|-------|
 | Linux | UTF-8 | Usually |
-| macOS | NFD (decomposed) | `café` stored as `café` |
+| macOS | NFD (decomposed) | `cafe` stored NFD |
 | Windows | UTF-16 | WTF-8 in Rust's OsString |
 
 **Implication:** SourisDW normalizes Unicode with `unicode-normalization` (NFC) before comparing filenames.
@@ -126,7 +128,7 @@ SourisDW uses the `ctrlc` crate for cross-platform Ctrl+C handling.
 
 | Platform | Source |
 |----------|--------|
-| Linux | `/etc/ssl/certs` (via `rustls-native-certs` + `openssl-probe`) |
+| Linux | `/etc/ssl/certs` (via `rustls-native-certs`) |
 | macOS | System Keychain (via `rustls-native-certs`) |
 | Windows | Windows Certificate Store (via `rustls-native-certs`) |
 
@@ -134,14 +136,18 @@ SourisDW uses `rustls` (not OpenSSL) for TLS. System certificates are loaded via
 
 ## Testing Matrix
 
-CI tests run on all platforms:
-- Ubuntu (latest)
-- Fedora (latest) - native container build
-- macOS (latest)
-- Windows (latest)
+CI tests run on:
+- Ubuntu (latest) - x86_64
+- Fedora 41 - x86_64 (container)
+- macOS (latest) - x86_64 + aarch64
+- Windows (latest) - x86_64 + aarch64
 
 Tests include:
+- Formatting (`cargo fmt --check`)
+- Linting (`cargo clippy -- -D warnings`)
+- Unit tests (`cargo test`)
+- Release build (`cargo build --release`)
 - Paths with spaces
 - Paths with Unicode characters
-- Long paths (>260 chars on Windows)
+- Long paths
 - Non-TTY output (piped)

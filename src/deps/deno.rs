@@ -1,8 +1,9 @@
+use crate::deps::download;
 use crate::deps::platform;
-use crate::utils::fs;
+use crate::deps::resolve;
+use crate::deps::versions;
+use crate::error::Result;
 use std::path::{Path, PathBuf};
-
-const DENO_EMBEDDED: &[u8] = include_bytes!(env!("DENO_PATH"));
 
 pub struct Deno {
     binary_path: PathBuf,
@@ -29,6 +30,42 @@ impl Deno {
         }
     }
 
+    pub async fn ensure_installed_blocking(quiet: bool) -> Self {
+        let bin_dir = match platform::bin_dir() {
+            Some(d) => d,
+            None => {
+                tracing::warn!("Cannot determine bin directory");
+                return Self::unavailable();
+            }
+        };
+        let binary_name = platform::deno_binary_name();
+        let binary_path = bin_dir.join(&binary_name);
+
+        // Always re-download fresh copy (deps install = refresh)
+        if binary_path.exists() {
+            let _ = fs_err::remove_file(&binary_path);
+        }
+
+        let version = resolve::default_deno_version();
+        let url = resolve::deno_download_url(&version);
+
+        match download::download_and_extract_zip(&url, &binary_path, &binary_name, "deno", quiet)
+            .await
+        {
+            Ok(_) => {
+                let version = Self::get_version_blocking(&binary_path).ok();
+                Self {
+                    binary_path,
+                    version,
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to download deno: {}", e);
+                Self::unavailable()
+            }
+        }
+    }
+
     pub async fn ensure_installed() -> Self {
         let bin_dir = match platform::bin_dir() {
             Some(d) => d,
@@ -48,44 +85,43 @@ impl Deno {
             };
         }
 
-        if !DENO_EMBEDDED.is_empty() {
-            if let Err(e) = Self::extract_embedded(&bin_dir, &binary_path) {
-                tracing::warn!("Failed to extract embedded deno: {}", e);
-                return Self::unavailable();
+        let version = resolve::default_deno_version();
+        let url = resolve::deno_download_url(&version);
+
+        match download::download_and_extract_zip(&url, &binary_path, &binary_name, "deno", false)
+            .await
+        {
+            Ok(_) => {
+                let version = Self::get_version(&binary_path).await.ok();
+                Self {
+                    binary_path,
+                    version,
+                }
             }
-            let version = Self::get_version(&binary_path).await.ok();
-            return Self {
-                binary_path,
-                version,
-            };
+            Err(e) => {
+                tracing::warn!("Failed to download deno: {}", e);
+                Self::unavailable()
+            }
         }
-
-        tracing::warn!(
-            "Embedded deno is empty (build.rs may have failed to download it). \
-             Falling back to system deno..."
-        );
-
-        if let Some(system_deno) = fs::which("deno") {
-            let version = Self::get_version(&system_deno).await.ok();
-            return Self {
-                binary_path: system_deno,
-                version,
-            };
-        }
-
-        tracing::warn!("deno not found via any method");
-        Self::unavailable()
     }
 
-    fn extract_embedded(bin_dir: &Path, binary_path: &Path) -> crate::error::Result<()> {
-        fs::ensure_dir(bin_dir)?;
-        fs_err::write(binary_path, DENO_EMBEDDED)
+    fn get_version_blocking(binary_path: &Path) -> Result<String> {
+        let output = std::process::Command::new(binary_path)
+            .arg("--version")
+            .output()
             .map_err(|e| crate::error::SourisError::io(binary_path, e))?;
-        fs::set_executable(binary_path)?;
-        Ok(())
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let version = stdout
+            .lines()
+            .next()
+            .map(|l| l.to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        Ok(version)
     }
 
-    async fn get_version(binary_path: &Path) -> crate::error::Result<String> {
+    async fn get_version(binary_path: &Path) -> Result<String> {
         let output = tokio::process::Command::new(binary_path)
             .arg("--version")
             .output()
@@ -102,20 +138,43 @@ impl Deno {
         Ok(version)
     }
 
-    pub async fn update(&self) {
-        let bin_dir = match platform::bin_dir() {
-            Some(d) => d,
-            None => {
-                tracing::warn!("Cannot determine bin directory for deno update");
-                return;
+    pub async fn update(&self) -> Option<Self> {
+        if !self.is_installed() {
+            return Some(Self::ensure_installed().await);
+        }
+
+        let latest = match versions::fetch_latest_deno_version().await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("Failed to check latest deno version: {}", e);
+                return None;
             }
         };
+
+        let current = self.version.as_deref().unwrap_or("");
+        if current.trim_start_matches('v') == latest.trim_start_matches('v') {
+            return None;
+        }
+
+        tracing::info!("Updating deno: {:?} -> {}", self.version, latest);
+        let bin_dir = self.binary_path.parent().unwrap();
+        let url = resolve::deno_download_url(&latest);
         let binary_name = platform::deno_binary_name();
         let binary_path = bin_dir.join(&binary_name);
 
-        if !DENO_EMBEDDED.is_empty() {
-            if let Err(e) = Self::extract_embedded(&bin_dir, &binary_path) {
+        match download::download_and_extract_zip(&url, &binary_path, &binary_name, "deno", false)
+            .await
+        {
+            Ok(_) => {
+                let version = Self::get_version(&binary_path).await.ok();
+                Some(Self {
+                    binary_path,
+                    version,
+                })
+            }
+            Err(e) => {
                 tracing::warn!("Failed to update deno: {}", e);
+                None
             }
         }
     }

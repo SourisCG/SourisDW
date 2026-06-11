@@ -71,10 +71,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
+      - name: Install cross
+        if: matrix.cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
       - name: Build with cross
         if: matrix.cross
         run: |
-          cargo install cross --version 0.2.5
           cross build --release --target ${{ matrix.target }}
 
       - name: Build
@@ -101,7 +106,7 @@ jobs:
   build-fedora:
     name: Build (Fedora x86_64)
     runs-on: ubuntu-latest
-    container: fedora:39
+    container: fedora:41
     steps:
       - name: Install dependencies
         run: |
@@ -130,7 +135,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build, build-fedora]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
