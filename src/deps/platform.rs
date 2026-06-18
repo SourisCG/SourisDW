@@ -142,10 +142,14 @@ pub fn ffprobe_binary_name() -> String {
 pub fn yt_dlp_release_filename() -> &'static str {
     let os = current_os();
     let arch = current_arch();
+    yt_dlp_release_filename_for(os, arch)
+}
+
+pub fn yt_dlp_release_filename_for(os: Os, arch: Arch) -> &'static str {
     match (os, arch) {
         (Os::Linux, Arch::X86_64) => "yt-dlp_linux",
         (Os::Linux, Arch::Aarch64) => "yt-dlp_linux_aarch64",
-        (Os::Linux, Arch::Armv7l) => "yt-dlp_linux_armv7l",
+        (Os::Linux, Arch::Armv7l) => "yt-dlp_linux_armv7l.zip",
         (Os::Macos, _) => "yt-dlp_macos",
         (Os::Windows, Arch::X86_64) => "yt-dlp.exe",
         (Os::Windows, Arch::Aarch64) => "yt-dlp_arm64.exe",

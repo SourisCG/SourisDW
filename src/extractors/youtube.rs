@@ -442,6 +442,10 @@ impl YouTubeExtractor {
             downloaded_path
         };
 
+        if thumbnail_ok {
+            Self::cleanup_thumbnail_sidecars(&final_path);
+        }
+
         Ok(DownloadResult {
             success: true,
             path: Some(final_path),
@@ -797,6 +801,13 @@ impl YouTubeExtractor {
             }
         }
 
+        if embed_thumbnail {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let downloaded_path =
+                YouTubeExtractor::extract_downloaded_path_static(&stdout, output_dir);
+            YouTubeExtractor::cleanup_thumbnail_sidecars(&downloaded_path);
+        }
+
         Ok(DownloadResult {
             success: true,
             path: None,
@@ -921,6 +932,23 @@ impl YouTubeExtractor {
                 if path.extension().is_some_and(|e| e == "webp") {
                     let _ = std::fs::remove_file(&path);
                 }
+            }
+        }
+    }
+
+    fn cleanup_thumbnail_sidecars(downloaded_path: &str) {
+        let path = Path::new(downloaded_path);
+        let Some(parent) = path.parent() else {
+            return;
+        };
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            return;
+        };
+
+        for ext in ["webp", "jpg", "jpeg", "png"] {
+            let sidecar = parent.join(format!("{}.{}", stem, ext));
+            if sidecar.exists() {
+                let _ = fs_err::remove_file(sidecar);
             }
         }
     }

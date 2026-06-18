@@ -43,6 +43,11 @@ impl FFmpeg {
     /// Download or verify both ffmpeg and ffprobe.
     /// When `force` is true, re-downloads ffmpeg even if it exists (version check).
     async fn ensure_both(bin_dir: &Path, force: bool, quiet: bool) -> Self {
+        if !resolve::ffmpeg_supported() {
+            tracing::warn!("ffmpeg auto-install is not available for this platform");
+            return Self::unavailable();
+        }
+
         let ffmpeg_name = platform::ffmpeg_binary_name();
         let ffprobe_name = platform::ffprobe_binary_name();
         let ffmpeg_path = bin_dir.join(&ffmpeg_name);
@@ -75,7 +80,13 @@ impl FFmpeg {
 
         if should_dl {
             let version = resolve::default_ffmpeg_version();
-            let url = resolve::ffmpeg_download_url(&version);
+            let url = match resolve::try_ffmpeg_download_url(&version) {
+                Ok(url) => url,
+                Err(e) => {
+                    tracing::warn!("{}", e);
+                    return Self::unavailable();
+                }
+            };
             if let Err(e) =
                 download::download_and_decompress_gz(&url, &ffmpeg_path, "ffmpeg", quiet).await
             {
@@ -90,7 +101,13 @@ impl FFmpeg {
                 let _ = fs_err::remove_file(&ffprobe_path);
             }
             let version = resolve::default_ffmpeg_version();
-            let url = resolve::ffprobe_download_url(&version);
+            let url = match resolve::try_ffprobe_download_url(&version) {
+                Ok(url) => url,
+                Err(e) => {
+                    tracing::warn!("{}", e);
+                    return Self::unavailable();
+                }
+            };
             if let Err(e) =
                 download::download_and_decompress_gz(&url, &ffprobe_path, "ffprobe", quiet).await
             {
@@ -119,6 +136,10 @@ impl FFmpeg {
     }
 
     pub async fn ensure_installed() -> Self {
+        Self::ensure_installed_with_quiet(false).await
+    }
+
+    pub async fn ensure_installed_with_quiet(quiet: bool) -> Self {
         let bin_dir = match platform::bin_dir() {
             Some(d) => d,
             None => {
@@ -126,7 +147,7 @@ impl FFmpeg {
                 return Self::unavailable();
             }
         };
-        Self::ensure_both(&bin_dir, false, false).await
+        Self::ensure_both(&bin_dir, false, quiet).await
     }
 
     fn get_version_blocking(binary_path: &Path) -> Result<String> {
@@ -188,7 +209,13 @@ impl FFmpeg {
         // Update ffmpeg
         let ffmpeg_name = platform::ffmpeg_binary_name();
         let ffmpeg_path = bin_dir.join(&ffmpeg_name);
-        let ffmpeg_url = resolve::ffmpeg_download_url(&latest);
+        let ffmpeg_url = match resolve::try_ffmpeg_download_url(&latest) {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::warn!("{}", e);
+                return None;
+            }
+        };
         if let Err(e) =
             download::download_and_decompress_gz(&ffmpeg_url, &ffmpeg_path, "ffmpeg", false).await
         {
@@ -199,7 +226,13 @@ impl FFmpeg {
         // Update ffprobe alongside
         let ffprobe_name = platform::ffprobe_binary_name();
         let ffprobe_path = bin_dir.join(&ffprobe_name);
-        let ffprobe_url = resolve::ffprobe_download_url(&latest);
+        let ffprobe_url = match resolve::try_ffprobe_download_url(&latest) {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::warn!("{}", e);
+                return None;
+            }
+        };
         if let Err(e) =
             download::download_and_decompress_gz(&ffprobe_url, &ffprobe_path, "ffprobe", false)
                 .await

@@ -24,6 +24,7 @@ pub struct SourisDWBuilder {
     spotify_client_secret: Option<String>,
     cookies_file: Option<String>,
     cookies_from_browser: Option<String>,
+    quiet_deps: bool,
 }
 
 impl Default for SourisDWBuilder {
@@ -51,6 +52,7 @@ impl SourisDWBuilder {
             spotify_client_secret: None,
             cookies_file: None,
             cookies_from_browser: None,
+            quiet_deps: false,
         }
     }
 
@@ -140,12 +142,19 @@ impl SourisDWBuilder {
         self
     }
 
+    pub fn quiet_deps(mut self, enabled: bool) -> Self {
+        self.quiet_deps = enabled;
+        self
+    }
+
     pub async fn setup() {
         DepManager::setup(false, "stable").await;
     }
 
     pub async fn build(self) -> SourisDW {
-        let deps = DepManager::build(self.auto_update, &self.yt_dlp_channel).await;
+        let deps =
+            DepManager::build_with_quiet(self.auto_update, &self.yt_dlp_channel, self.quiet_deps)
+                .await;
 
         let resolver = Resolver::new(
             deps.yt_dlp().clone(),
@@ -161,7 +170,7 @@ impl SourisDWBuilder {
             default_quality: self.quality,
             default_output: self
                 .output
-                .unwrap_or_else(|| dirs_or_default().join("downloads")),
+                .unwrap_or_else(crate::utils::paths::default_download_dir),
             parallel: self.parallel,
             embed_metadata: self.embed_metadata,
             embed_thumbnail: self.embed_thumbnail,
@@ -294,8 +303,4 @@ impl SourisDW {
             )
             .await
     }
-}
-
-fn dirs_or_default() -> PathBuf {
-    crate::deps::platform::data_dir().unwrap_or_else(|| PathBuf::from("."))
 }

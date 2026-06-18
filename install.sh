@@ -176,6 +176,14 @@ add_to_path() {
     esac
 }
 
+initialize_sourisdw() {
+    local path="$1"
+
+    if ! "$path" setup --quiet; then
+        warn "Setup warning: automatic dependency setup failed. Run 'souris-dw setup --quiet' later."
+    fi
+}
+
 main() {
     local os arch install_dir
 
@@ -208,6 +216,7 @@ main() {
 
     info "Verifying binary..."
     verify_binary "${install_dir}/${BINARY}"
+    initialize_sourisdw "${install_dir}/${BINARY}"
 
     success "${BINARY} installed to ${install_dir}/${BINARY}"
 

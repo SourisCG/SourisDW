@@ -59,6 +59,7 @@ lofty = "0.21"
 
 # Path utilities (cross-platform)
 directories = "6"
+dirs = "6"
 dunce = "1"
 path-slash = "0.2"
 normalize-path = "0.2"
@@ -109,3 +110,21 @@ async-trait = "0.1"
 
 [dev-dependencies]
 tokio-test = "0.4"
+
+[package.metadata.deb]
+maintainer = "SourisDW"
+extended-description = "Cross-platform music and video downloader for YouTube and Spotify."
+section = "utils"
+priority = "optional"
+assets = [
+  ["target/release/souris-dw", "usr/bin/souris-dw", "755"],
+  ["README.md", "usr/share/doc/souris-dw/README.md", "644"],
+  ["LICENSE", "usr/share/doc/souris-dw/LICENSE", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/release/souris-dw", dest = "/usr/bin/souris-dw", mode = "755" },
+  { source = "README.md", dest = "/usr/share/doc/souris-dw/README.md", mode = "644" },
+  { source = "LICENSE", dest = "/usr/share/doc/souris-dw/LICENSE", mode = "644" },
+]

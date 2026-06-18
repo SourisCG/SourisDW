@@ -25,6 +25,7 @@ pub struct DownloadState {
     pub url: String,
     pub title: String,
     pub platform: String,
+    pub author: Option<String>,
     pub media_type: String,
     pub status: DownloadStatus,
     pub progress: f64,
@@ -38,6 +39,7 @@ pub struct DownloadState {
 
 pub enum DownloadStatus {
     Queued,
+    Resolving,
     Downloading,
     PostProcessing,
     Complete,
@@ -55,6 +57,7 @@ pub struct SearchResult {
     pub title: String,
     pub url: String,
     pub platform: String,
+    pub author: Option<String>,
     pub duration: Option<u64>,
     pub selected: bool,
 }
@@ -140,6 +143,7 @@ impl AppState {
             quality,
             size: None,
             path: None,
+            author: None,
         });
         id
     }
@@ -156,6 +160,7 @@ impl AppState {
                 if let Some(dl) = self.downloads.last_mut() {
                     dl.title = title;
                     dl.platform = platform;
+                    dl.author = None;
                     dl.media_type = media_type;
                     dl.status = DownloadStatus::Downloading;
                 }
@@ -450,14 +455,22 @@ impl AppState {
 
 impl Default for AppConfigState {
     fn default() -> Self {
+        let config = crate::config::AppConfig::load().ok();
+        let download = config.as_ref().map(|c| &c.download);
         Self {
-            default_format: "mp4".to_string(),
-            default_quality: "1080p".to_string(),
-            output_dir: PathBuf::from("./downloads"),
-            parallel: 4,
-            embed_metadata: true,
-            embed_thumbnail: true,
-            auto_update: false,
+            default_format: download
+                .map(|d| d.default_format.clone())
+                .unwrap_or_else(|| "mp4".to_string()),
+            default_quality: download
+                .map(|d| d.default_quality.clone())
+                .unwrap_or_else(|| "1080p".to_string()),
+            output_dir: download
+                .map(|d| d.output_dir.clone())
+                .unwrap_or_else(crate::utils::paths::default_download_dir),
+            parallel: download.map(|d| d.parallel).unwrap_or(4),
+            embed_metadata: download.map(|d| d.embed_metadata).unwrap_or(true),
+            embed_thumbnail: download.map(|d| d.embed_thumbnail).unwrap_or(true),
+            auto_update: config.as_ref().is_some_and(|c| c.yt_dlp.auto_update),
             audio_only: false,
             audio_format: "mp3".to_string(),
         }

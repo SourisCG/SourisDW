@@ -12,6 +12,34 @@ fn wrap_text(text: &str) -> String {
     textwrap::fill(text, terminal_width())
 }
 
+async fn handle_setup(quiet: bool, json: bool) -> Result<()> {
+    souris_dw::utils::paths::ensure_default_dirs()?;
+
+    let mut config = souris_dw::AppConfig::load().unwrap_or_default();
+    if souris_dw::utils::paths::is_legacy_default_download_dir(&config.download.output_dir) {
+        config.download.output_dir = souris_dw::default_download_dir();
+    }
+    config.save()?;
+
+    let deps = souris_dw::DepManager::setup_blocking(false, &config.yt_dlp.channel, quiet).await;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "type": "setup",
+                "download_dir": config.download.output_dir,
+                "deps": deps.status(),
+            }))?
+        );
+    } else if !quiet {
+        println!("Setup complete");
+        println!("Downloads: {}", config.download.output_dir.display());
+    }
+
+    Ok(())
+}
+
 #[derive(Parser)]
 #[command(name = "souris-dw")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -94,6 +122,10 @@ enum Commands {
         #[command(subcommand)]
         action: DepsAction,
     },
+    Setup {
+        #[arg(long)]
+        quiet: bool,
+    },
     Uninstall {
         #[arg(long)]
         keep_config: bool,
@@ -168,6 +200,7 @@ async fn main() {
         } => handle_update(yt_dlp, ffmpeg, self_, check, cli.json).await,
         Commands::Config { action } => handle_config(action, cli.json).await,
         Commands::Deps { action } => handle_deps(action, cli.json).await,
+        Commands::Setup { quiet } => handle_setup(quiet || cli.quiet, cli.json).await,
         Commands::Uninstall { keep_config } => handle_uninstall(keep_config, cli.json).await,
         Commands::Tui => handle_tui().await,
     };
@@ -220,6 +253,8 @@ async fn handle_download(
 
     if let Some(o) = output {
         builder = builder.output(o);
+    } else if let Some(config) = config.as_ref() {
+        builder = builder.output(config.download.output_dir.clone());
     }
 
     if let Some(p) = parallel {
@@ -612,6 +647,7 @@ enum TuiEvent {
         index: usize,
         title: String,
         platform: String,
+        author: Option<String>,
     },
     DownloadProgress {
         index: usize,
@@ -771,10 +807,17 @@ async fn handle_tui() -> Result<()> {
                                     let title = result.title.clone();
                                     let url = result.url.clone();
                                     let platform = result.platform.clone();
-                                    let index =
-                                        app.add_download(url.clone(), title, platform.clone());
+                                    let index = app.add_download(
+                                        url.clone(),
+                                        title.clone(),
+                                        platform.clone(),
+                                    );
+                                    if let Some(dl) = app.downloads.get_mut(index) {
+                                        dl.status = souris_dw::tui::app::DownloadStatus::Resolving;
+                                        dl.author = result.author.clone();
+                                    }
                                     app.toggle_search();
-                                    app.status_message = Some("Starting download...".into());
+                                    app.status_message = Some("Resolving media...".into());
 
                                     let tx = tx.clone();
                                     let audio_only = app.config.audio_only;
@@ -791,6 +834,7 @@ async fn handle_tui() -> Result<()> {
                                             let builder = souris_dw::SourisDW::builder()
                                                 .auto_update(true)
                                                 .yt_dlp_channel("stable")
+                                                .quiet_deps(true)
                                                 .spotify_credentials(
                                                     std::env::var("SOURIS_SPOTIFY_CLIENT_ID")
                                                         .unwrap_or_default(),
@@ -799,10 +843,22 @@ async fn handle_tui() -> Result<()> {
                                                 );
                                             let dw = builder.build().await;
 
+                                            let info = dw.info(&url).await.ok();
+                                            let resolved_title = info
+                                                .as_ref()
+                                                .map(|i| i.title.clone())
+                                                .unwrap_or_else(|| title.clone());
+                                            let resolved_platform = info
+                                                .as_ref()
+                                                .map(|i| i.platform.clone())
+                                                .unwrap_or_else(|| platform.clone());
+                                            let author = info.and_then(|i| i.uploader);
+
                                             let _ = tx.send(TuiEvent::DownloadStarted {
                                                 index,
-                                                title: url.clone(),
-                                                platform: platform.clone(),
+                                                title: resolved_title,
+                                                platform: resolved_platform,
+                                                author,
                                             });
 
                                             let mut req = if audio_only {
@@ -858,6 +914,7 @@ async fn handle_tui() -> Result<()> {
                                     let result = async {
                                         let builder = souris_dw::SourisDW::builder()
                                             .auto_update(true)
+                                            .quiet_deps(true)
                                             .build()
                                             .await;
                                         builder.search(&input_buf).await
@@ -877,11 +934,14 @@ async fn handle_tui() -> Result<()> {
                                 let url = app.input_buffer.clone();
                                 let index = app.add_download(
                                     url.clone(),
-                                    url.clone(),
-                                    "Unknown".to_string(),
+                                    "Resolving...".to_string(),
+                                    "Resolving...".to_string(),
                                 );
+                                if let Some(dl) = app.downloads.get_mut(index) {
+                                    dl.status = souris_dw::tui::app::DownloadStatus::Resolving;
+                                }
                                 app.cancel_input();
-                                app.status_message = Some("Starting download...".into());
+                                app.status_message = Some("Resolving media...".into());
 
                                 let tx = tx.clone();
                                 let audio_only = app.config.audio_only;
@@ -898,6 +958,7 @@ async fn handle_tui() -> Result<()> {
                                         let builder = souris_dw::SourisDW::builder()
                                             .auto_update(true)
                                             .yt_dlp_channel("stable")
+                                            .quiet_deps(true)
                                             .spotify_credentials(
                                                 std::env::var("SOURIS_SPOTIFY_CLIENT_ID")
                                                     .unwrap_or_default(),
@@ -906,10 +967,22 @@ async fn handle_tui() -> Result<()> {
                                             );
                                         let dw = builder.build().await;
 
+                                        let info = dw.info(&url).await.ok();
+                                        let resolved_title = info
+                                            .as_ref()
+                                            .map(|i| i.title.clone())
+                                            .unwrap_or_else(|| url.clone());
+                                        let resolved_platform = info
+                                            .as_ref()
+                                            .map(|i| i.platform.clone())
+                                            .unwrap_or_else(|| "YouTube".into());
+                                        let author = info.and_then(|i| i.uploader);
+
                                         let _ = tx.send(TuiEvent::DownloadStarted {
                                             index,
-                                            title: url.clone(),
-                                            platform: "YouTube".into(),
+                                            title: resolved_title,
+                                            platform: resolved_platform,
+                                            author,
                                         });
 
                                         let mut req = if audio_only {
@@ -987,10 +1060,12 @@ async fn handle_tui() -> Result<()> {
                             index,
                             title,
                             platform,
+                            author,
                         } => {
                             if let Some(dl) = app.downloads.get_mut(index) {
                                 dl.title = title;
                                 dl.platform = platform;
+                                dl.author = author;
                                 dl.status = souris_dw::tui::app::DownloadStatus::Downloading;
                             }
                         }
@@ -1028,6 +1103,7 @@ async fn handle_tui() -> Result<()> {
                                     title: r.title,
                                     url: r.url,
                                     platform: r.platform,
+                                    author: r.uploader,
                                     duration: r.duration,
                                     selected: false,
                                 })

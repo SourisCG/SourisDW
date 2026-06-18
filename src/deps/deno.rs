@@ -31,6 +31,11 @@ impl Deno {
     }
 
     pub async fn ensure_installed_blocking(quiet: bool) -> Self {
+        if !resolve::deno_supported() {
+            tracing::warn!("deno auto-install is not available for this platform");
+            return Self::unavailable();
+        }
+
         let bin_dir = match platform::bin_dir() {
             Some(d) => d,
             None => {
@@ -47,7 +52,13 @@ impl Deno {
         }
 
         let version = resolve::default_deno_version();
-        let url = resolve::deno_download_url(&version);
+        let url = match resolve::try_deno_download_url(&version) {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::warn!("{}", e);
+                return Self::unavailable();
+            }
+        };
 
         match download::download_and_extract_zip(&url, &binary_path, &binary_name, "deno", quiet)
             .await
@@ -67,6 +78,15 @@ impl Deno {
     }
 
     pub async fn ensure_installed() -> Self {
+        Self::ensure_installed_with_quiet(false).await
+    }
+
+    pub async fn ensure_installed_with_quiet(quiet: bool) -> Self {
+        if !resolve::deno_supported() {
+            tracing::warn!("deno auto-install is not available for this platform");
+            return Self::unavailable();
+        }
+
         let bin_dir = match platform::bin_dir() {
             Some(d) => d,
             None => {
@@ -86,9 +106,15 @@ impl Deno {
         }
 
         let version = resolve::default_deno_version();
-        let url = resolve::deno_download_url(&version);
+        let url = match resolve::try_deno_download_url(&version) {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::warn!("{}", e);
+                return Self::unavailable();
+            }
+        };
 
-        match download::download_and_extract_zip(&url, &binary_path, &binary_name, "deno", false)
+        match download::download_and_extract_zip(&url, &binary_path, &binary_name, "deno", quiet)
             .await
         {
             Ok(_) => {
@@ -158,7 +184,13 @@ impl Deno {
 
         tracing::info!("Updating deno: {:?} -> {}", self.version, latest);
         let bin_dir = self.binary_path.parent().unwrap();
-        let url = resolve::deno_download_url(&latest);
+        let url = match resolve::try_deno_download_url(&latest) {
+            Ok(url) => url,
+            Err(e) => {
+                tracing::warn!("{}", e);
+                return None;
+            }
+        };
         let binary_name = platform::deno_binary_name();
         let binary_path = bin_dir.join(&binary_name);
 

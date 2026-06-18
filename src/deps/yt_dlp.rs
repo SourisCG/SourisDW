@@ -98,6 +98,10 @@ impl YtDlp {
     }
 
     pub async fn ensure_installed(channel: &str) -> Self {
+        Self::ensure_installed_with_quiet(channel, false).await
+    }
+
+    pub async fn ensure_installed_with_quiet(channel: &str, quiet: bool) -> Self {
         let binary_name = platform::yt_dlp_binary_name();
         let deno_name = platform::deno_binary_name();
 
@@ -123,17 +127,26 @@ impl YtDlp {
             };
         }
 
-        Self::download(binary_path.parent().unwrap_or(Path::new(".")), channel).await
+        Self::download_with_quiet(
+            binary_path.parent().unwrap_or(Path::new(".")),
+            channel,
+            quiet,
+        )
+        .await
     }
 
     pub async fn download(bin_dir: &Path, channel: &str) -> Self {
+        Self::download_with_quiet(bin_dir, channel, false).await
+    }
+
+    pub async fn download_with_quiet(bin_dir: &Path, channel: &str, quiet: bool) -> Self {
         let binary_name = platform::yt_dlp_binary_name();
         let deno_name = platform::deno_binary_name();
         let binary_path = bin_dir.join(&binary_name);
         let deno_path = bin_dir.join(&deno_name);
         let url = platform::yt_dlp_download_url(channel);
 
-        match download::download_binary(&url, &binary_path, "yt-dlp", false).await {
+        match download::download_binary(&url, &binary_path, "yt-dlp", quiet).await {
             Ok(_) => {}
             Err(e) => {
                 tracing::warn!("Failed to download yt-dlp: {}", e);

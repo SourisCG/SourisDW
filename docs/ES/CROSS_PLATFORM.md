@@ -14,6 +14,8 @@
 | Windows | x86_64 | `souris-dw-windows-x86_64.exe` |
 | Windows | aarch64 | `souris-dw-windows-arm64.exe` |
 
+Nota: `souris-dw-windows-arm64.exe` se compila para Windows ARM64. La instalacion automatica de ffmpeg/ffprobe queda desactivada en esa plataforma hasta que el proveedor upstream publique assets Windows ARM64.
+
 ## Diferencias del Sistema de Archivos
 
 | Plataforma | Sensible a mayusculas | Separador |
@@ -56,16 +58,33 @@
 
 SourisDW usa `rustls` (no OpenSSL) para TLS.
 
+## Dependencias en Runtime
+
+SourisDW descarga `yt-dlp`, `ffmpeg`, `ffprobe` y `deno` en runtime si faltan. Las descargas validan el estado HTTP, reintentan y escriben primero a un archivo temporal antes de reemplazar el binario final.
+
+La salida por defecto es la carpeta Downloads/Descargas del usuario en cada sistema. El uso como libreria mantiene ese default seguro si no se configura `.output(...)`, y siempre respeta rutas explicitas.
+
+| Dependencia | Linux x86_64 | Linux aarch64 | macOS x86_64 | macOS aarch64 | Windows x86_64 | Windows aarch64 |
+|-------------|--------------|---------------|--------------|---------------|----------------|-----------------|
+| yt-dlp | auto | auto | auto | auto | auto | auto |
+| deno | auto | auto | auto | auto | auto | auto |
+| ffmpeg/ffprobe | auto | auto | auto | auto | auto | sistema/fallback |
+
 ## Matriz de Pruebas CI
 
 Las pruebas de CI se ejecutan en:
 - Ubuntu (latest) - x86_64
 - Fedora 41 - x86_64 (contenedor)
-- macOS (latest) - x86_64 + aarch64
-- Windows (latest) - x86_64 + aarch64
+- macOS (latest) - pruebas nativas y checks de target x86_64/aarch64
+- Windows (latest) - pruebas nativas y checks de target x86_64/aarch64
 
 Pruebas incluyen:
 - Formato (`cargo fmt --check`)
 - Linting (`cargo clippy -- -D warnings`)
 - Tests unitarios (`cargo test`)
 - Compilacion release (`cargo build --release`)
+- Checks de target para todos los binarios publicados
+- Rutas con espacios
+- Mapeo de assets de dependencias sin acceso a red
+
+Los releases incluyen binarios crudos, paquetes Linux `.deb`/`.rpm`, tarballs para macOS y zips para Windows.

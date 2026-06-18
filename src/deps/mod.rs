@@ -58,9 +58,13 @@ impl DepManager {
     /// Creates a DepManager using existing dependencies (no download).
     /// If a dependency is missing, it will be auto-downloaded.
     pub async fn build(auto_update: bool, channel: &str) -> Self {
-        let yt_dlp = YtDlp::ensure_installed(channel).await;
-        let ffmpeg = FFmpeg::ensure_installed().await;
-        let deno = Deno::ensure_installed().await;
+        Self::build_with_quiet(auto_update, channel, false).await
+    }
+
+    pub async fn build_with_quiet(auto_update: bool, channel: &str, quiet: bool) -> Self {
+        let yt_dlp = YtDlp::ensure_installed_with_quiet(channel, quiet).await;
+        let ffmpeg = FFmpeg::ensure_installed_with_quiet(quiet).await;
+        let deno = Deno::ensure_installed_with_quiet(quiet).await;
 
         let manager = Self {
             yt_dlp,

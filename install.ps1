@@ -60,6 +60,17 @@ function Install-Binary {
     Write-Success "$Binary installed to $exePath"
 }
 
+function Initialize-SourisDW {
+    param([string]$InstallDir)
+
+    $exePath = Join-Path $InstallDir "${Binary}.exe"
+    try {
+        & $exePath setup --quiet
+    } catch {
+        Write-Info "Setup warning: $_"
+    }
+}
+
 function Add-ToPath {
     param([string]$Dir)
 
@@ -81,6 +92,7 @@ function Main {
 
     Install-Binary -Url $url -InstallDir $installDir
     Add-ToPath -Dir $installDir
+    Initialize-SourisDW -InstallDir $installDir
 
     Write-Success "$Binary installed successfully!"
 

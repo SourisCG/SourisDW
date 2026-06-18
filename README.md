@@ -48,8 +48,9 @@
 - CLI and interactive TUI modes
 - Use as a **library** in your own Rust projects
 - Use as a **motor** from any programming language via subprocess + JSON
-- Zero external dependencies to install (yt-dlp, ffmpeg, ffprobe, deno auto-downloaded at runtime)
+- Zero external dependencies to install on supported dependency platforms (yt-dlp, ffmpeg, ffprobe, deno auto-downloaded at runtime; Windows ARM64 uses system/fallback ffmpeg until upstream assets exist)
 - Runtime dependency manager with progress bars
+- Automatic first-run setup (`souris-dw setup --quiet`) creates config, dependency dirs, and uses your system Downloads folder by default
 - Auto-updates yt-dlp, ffmpeg, and deno (configurable)
 - Cross-platform: Linux (musl + glibc, x86_64 + aarch64), macOS (Intel + Apple Silicon), Windows (x64 + ARM64)
 - HTTP 403 auto-retry with android client fallback
@@ -136,6 +137,9 @@ souris-dw update
 
 # Install dependencies (force re-download)
 souris-dw deps install
+
+# Configure paths and dependencies without prompts
+souris-dw setup --quiet
 
 # Check dependency status
 souris-dw deps status

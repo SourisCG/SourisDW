@@ -18,3 +18,4 @@ pub use deps::yt_dlp::YtDlp;
 pub use deps::DepManager;
 pub use deps::DepStatus;
 pub use error::{Result, SourisError};
+pub use utils::paths::default_download_dir;

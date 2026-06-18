@@ -69,9 +69,7 @@ impl Default for AppConfig {
 }
 
 fn default_output_dir() -> PathBuf {
-    platform::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("downloads")
+    crate::utils::paths::default_download_dir()
 }
 
 impl AppConfig {
@@ -92,8 +90,13 @@ impl AppConfig {
 
         let contents = fs_err::read_to_string(&path).map_err(|e| SourisError::io(&path, e))?;
 
-        let config: AppConfig =
+        let mut config: AppConfig =
             toml::from_str(&contents).map_err(|e| SourisError::ConfigError(e.to_string()))?;
+
+        if crate::utils::paths::is_legacy_default_download_dir(&config.download.output_dir) {
+            config.download.output_dir = default_output_dir();
+            config.save()?;
+        }
 
         Ok(config)
     }

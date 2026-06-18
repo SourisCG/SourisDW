@@ -182,6 +182,7 @@ fn draw_active_downloads(f: &mut Frame, area: Rect, app: &AppState) {
 
         let (status_icon, status_color) = match &dl.status {
             DownloadStatus::Queued => ("\u{25cb}", SYNTHWAVE84_THEME.subtitle),
+            DownloadStatus::Resolving => ("\u{25d2}", SYNTHWAVE84_THEME.info),
             DownloadStatus::Downloading => ("\u{25cf}", SYNTHWAVE84_THEME.info),
             DownloadStatus::PostProcessing => ("\u{25d0}", SYNTHWAVE84_THEME.warning),
             DownloadStatus::Complete => ("\u{2713}", SYNTHWAVE84_THEME.success),
@@ -326,6 +327,7 @@ fn draw_selected_details(f: &mut Frame, area: Rect, app: &AppState) {
     let details = if let Some(dl) = app.downloads.get(app.selected_index) {
         let (status_text, status_color) = match &dl.status {
             DownloadStatus::Queued => ("Queued", SYNTHWAVE84_THEME.subtitle),
+            DownloadStatus::Resolving => ("Resolving", SYNTHWAVE84_THEME.info),
             DownloadStatus::Downloading => ("Downloading", SYNTHWAVE84_THEME.info),
             DownloadStatus::PostProcessing => ("Processing", SYNTHWAVE84_THEME.warning),
             DownloadStatus::Complete => ("Complete", SYNTHWAVE84_THEME.success),
@@ -341,6 +343,13 @@ fn draw_selected_details(f: &mut Frame, area: Rect, app: &AppState) {
                 Span::styled("  Platform ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
                 Span::styled(
                     &dl.platform,
+                    Style::default().fg(SYNTHWAVE84_THEME.foreground),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("  Author   ", Style::default().fg(SYNTHWAVE84_THEME.accent)),
+                Span::styled(
+                    dl.author.as_deref().unwrap_or("Not available"),
                     Style::default().fg(SYNTHWAVE84_THEME.foreground),
                 ),
             ]),
