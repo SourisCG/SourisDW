@@ -22,14 +22,12 @@ function Write-Error-Exit {
 }
 
 function Get-DownloadUrl {
-    $arch = if ([System.Environment]::Is64BitOperatingSystem) {
-        if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_IDENTIFIER -match 'ARM') {
-            "arm64"
-        } else {
-            "x86_64"
-        }
-    } else {
+    if (-not [System.Environment]::Is64BitOperatingSystem) {
         Write-Error-Exit "32-bit Windows no soportado. SourisDW requiere 64-bit."
+    }
+
+    if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_IDENTIFIER -match 'ARM') {
+        Write-Error-Exit "Windows ARM64 no soportado. Usa una maquina x64 o compila desde el codigo fuente."
     }
 
     if ($Version -eq "latest") {
@@ -38,10 +36,7 @@ function Get-DownloadUrl {
         $baseUrl = "https://github.com/$Repo/releases/download/$Version"
     }
 
-    if ($arch -eq "arm64") {
-        return "$baseUrl/${Binary}-windows-arm64.exe"
-    }
-    return "$baseUrl/${Binary}-windows-${arch}.exe"
+    return "$baseUrl/${Binary}-windows-x86_64.exe"
 }
 
 function Install-Binary {
@@ -88,7 +83,7 @@ function Main {
     New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
     $url = Get-DownloadUrl
-    Write-Info "Detected: Windows ($([System.Environment]::Is64BitOperatingSystem ? 'x86_64' : 'x86'))"
+    Write-Info "Detected: Windows x86_64"
 
     Install-Binary -Url $url -InstallDir $installDir
     Add-ToPath -Dir $installDir

@@ -1,12 +1,20 @@
+use crate::core::progress::{ProgressEvent, ProgressSender};
 use crate::core::request::MediaTypeHint;
 use crate::core::types::*;
 use crate::deps::yt_dlp::YtDlp;
 use crate::error::{Result, SourisError};
 use serde_json::Value;
 use std::path::Path;
+use tokio::io::AsyncBufReadExt;
 
 pub struct YouTubeExtractor {
     yt_dlp: YtDlp,
+}
+
+struct StreamResult {
+    status: std::process::ExitStatus,
+    stdout: String,
+    stderr: String,
 }
 
 impl YouTubeExtractor {
@@ -136,6 +144,9 @@ impl YouTubeExtractor {
         ffmpeg_path: Option<&std::path::Path>,
         cookies_file: Option<&str>,
         cookies_from_browser: Option<&str>,
+        timeout: u64,
+        max_retries: u32,
+        on_progress: Option<ProgressSender>,
     ) -> Result<DownloadResult> {
         let mut cmd = self.yt_dlp.command();
 
@@ -265,7 +276,8 @@ impl YouTubeExtractor {
             }
         }
 
-        cmd.args(["--socket-timeout", "30", "--retries", "10"]);
+        cmd.args(["--socket-timeout", &timeout.to_string()]);
+        cmd.args(["--retries", &max_retries.to_string()]);
 
         let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
         cmd.args(["-o", &output_template]);
@@ -288,17 +300,12 @@ impl YouTubeExtractor {
 
         cmd.arg(url);
 
-        let output = cmd
-            .output()
-            .await
-            .map_err(|e| SourisError::DownloadFailed {
-                reason: e.to_string(),
-            })?;
+        let output = run_streaming(&mut cmd, timeout, on_progress.as_ref(), 1, 1).await?;
 
         let is_403 = |stderr: &str| stderr.contains("403") || stderr.contains("HTTP Error 403");
 
         let output = if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = output.stderr.clone();
             if is_403(&stderr) {
                 // Retry with android client to bypass YouTube restrictions
                 let mut cmd2 = self.yt_dlp.command();
@@ -374,7 +381,8 @@ impl YouTubeExtractor {
                     cmd2.args(["-f", ff]);
                 }
 
-                cmd2.args(["--socket-timeout", "30", "--retries", "10"]);
+                cmd2.args(["--socket-timeout", &timeout.to_string()]);
+                cmd2.args(["--retries", &max_retries.to_string()]);
                 cmd2.args(["-o", &output_template]);
                 cmd2.arg("--windows-filenames");
                 cmd2.args(["--replace-in-metadata", "title", "\\.+$", ""]);
@@ -391,11 +399,7 @@ impl YouTubeExtractor {
 
                 cmd2.arg(url);
 
-                cmd2.output()
-                    .await
-                    .map_err(|e| SourisError::DownloadFailed {
-                        reason: e.to_string(),
-                    })?
+                run_streaming(&mut cmd2, timeout, on_progress.as_ref(), 1, 1).await?
             } else {
                 if thumbnail_ok {
                     Self::cleanup_webp(output_dir);
@@ -408,7 +412,7 @@ impl YouTubeExtractor {
             output
         };
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = String::from_utf8_lossy(output.stdout.as_bytes());
         let downloaded_path = Self::extract_downloaded_path_static(&stdout, output_dir);
 
         // WAV 2-step: convert from ogg (with thumbnail) to wav
@@ -446,10 +450,20 @@ impl YouTubeExtractor {
             Self::cleanup_thumbnail_sidecars(&final_path);
         }
 
+        let size = std::fs::metadata(&final_path).map(|m| m.len()).ok();
+        if let Some(ref tx) = on_progress {
+            let _ = tx.send(ProgressEvent::complete(
+                1,
+                1,
+                &final_path,
+                size.unwrap_or(0),
+            ));
+        }
+
         Ok(DownloadResult {
             success: true,
             path: Some(final_path),
-            size: None,
+            size,
             error: None,
             elapsed: None,
         })
@@ -469,9 +483,24 @@ impl YouTubeExtractor {
         ffmpeg_path: Option<&std::path::Path>,
         cookies_file: Option<&str>,
         cookies_from_browser: Option<&str>,
+        timeout: u64,
+        max_retries: u32,
+        on_progress: Option<ProgressSender>,
     ) -> Result<Vec<DownloadResult>> {
         let items = self.extract_playlist_info(url).await?;
+        let total = items.len();
         let mut results = Vec::new();
+        let started = std::time::Instant::now();
+
+        if let Some(ref tx) = on_progress {
+            let title = items
+                .first()
+                .map(|i| i.title.clone())
+                .unwrap_or_else(|| url.to_string());
+            let _ = tx.send(ProgressEvent::init(
+                url, "youtube", &title, "playlist", total,
+            ));
+        }
 
         let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(parallel));
         let mut handles = Vec::new();
@@ -479,7 +508,7 @@ impl YouTubeExtractor {
         let cookies_file = cookies_file.map(|s| s.to_string());
         let cookies_from_browser = cookies_from_browser.map(|s| s.to_string());
 
-        for item in items {
+        for (idx, item) in items.iter().enumerate() {
             let permit = semaphore.clone().acquire_owned().await.unwrap();
             let yt_dlp = self.yt_dlp.binary_path().to_path_buf();
             let deno = self.yt_dlp.deno_path().map(|p| p.to_path_buf());
@@ -490,6 +519,8 @@ impl YouTubeExtractor {
             let ffmpeg = ffmpeg_path.map(|p| p.to_path_buf());
             let cf = cookies_file.clone();
             let cb = cookies_from_browser.clone();
+            let tx = on_progress.clone();
+            let item_no = idx + 1;
 
             handles.push(tokio::spawn(async move {
                 let result = Self::download_single(
@@ -505,6 +536,11 @@ impl YouTubeExtractor {
                     ffmpeg.as_deref(),
                     cf.as_deref(),
                     cb.as_deref(),
+                    timeout,
+                    max_retries,
+                    tx,
+                    item_no,
+                    total,
                 )
                 .await;
                 drop(permit);
@@ -525,6 +561,18 @@ impl YouTubeExtractor {
             }
         }
 
+        if let Some(ref tx) = on_progress {
+            let success = results.iter().filter(|r| r.success).count();
+            let failed = results.len() - success;
+            let elapsed = started.elapsed();
+            let _ = tx.send(ProgressEvent::summary(
+                total,
+                success,
+                failed,
+                &format_elapsed(elapsed),
+            ));
+        }
+
         Ok(results)
     }
 
@@ -542,6 +590,11 @@ impl YouTubeExtractor {
         ffmpeg_path: Option<&std::path::Path>,
         cookies_file: Option<&str>,
         cookies_from_browser: Option<&str>,
+        timeout: u64,
+        max_retries: u32,
+        on_progress: Option<ProgressSender>,
+        item: usize,
+        total: usize,
     ) -> Result<DownloadResult> {
         // WAV 2-step deprecated: WAV can't embed thumbnails, direct download is fine
         let wav_2step = false;
@@ -645,7 +698,8 @@ impl YouTubeExtractor {
             }
         }
 
-        cmd.args(["--socket-timeout", "30", "--retries", "10"]);
+        cmd.args(["--socket-timeout", &timeout.to_string()]);
+        cmd.args(["--retries", &max_retries.to_string()]);
 
         let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
         cmd.args(["-o", &output_template]);
@@ -668,17 +722,12 @@ impl YouTubeExtractor {
 
         cmd.arg(url);
 
-        let output = cmd
-            .output()
-            .await
-            .map_err(|e| SourisError::DownloadFailed {
-                reason: e.to_string(),
-            })?;
+        let output = run_streaming(&mut cmd, timeout, on_progress.as_ref(), item, total).await?;
 
         let is_403 = |stderr: &str| stderr.contains("403") || stderr.contains("HTTP Error 403");
 
         let output = if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = output.stderr.clone();
             if is_403(&stderr) {
                 let mut cmd2 = YtDlp::command_with(yt_dlp_path, deno_path);
                 cmd2.args(["--newline", "--no-color"]);
@@ -740,7 +789,8 @@ impl YouTubeExtractor {
                     cmd2.args(["-f", ff]);
                 }
 
-                cmd2.args(["--socket-timeout", "30", "--retries", "10"]);
+                cmd2.args(["--socket-timeout", &timeout.to_string()]);
+                cmd2.args(["--retries", &max_retries.to_string()]);
                 cmd2.args(["-o", &output_template]);
                 cmd2.arg("--windows-filenames");
                 cmd2.args(["--replace-in-metadata", "title", "\\.+$", ""]);
@@ -757,14 +807,18 @@ impl YouTubeExtractor {
 
                 cmd2.arg(url);
 
-                cmd2.output()
-                    .await
-                    .map_err(|e| SourisError::DownloadFailed {
-                        reason: e.to_string(),
-                    })?
+                run_streaming(&mut cmd2, timeout, on_progress.as_ref(), item, total).await?
             } else {
                 if thumbnail_ok {
                     YouTubeExtractor::cleanup_webp(output_dir);
+                }
+                if let Some(ref tx) = on_progress {
+                    let _ = tx.send(ProgressEvent::error(
+                        item,
+                        total,
+                        "DOWNLOAD_FAILED",
+                        stderr.trim(),
+                    ));
                 }
                 return Err(SourisError::DownloadFailed {
                     reason: stderr.to_string(),
@@ -776,7 +830,7 @@ impl YouTubeExtractor {
 
         // WAV 2-step for playlist items
         if wav_2step {
-            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stdout = String::from_utf8_lossy(output.stdout.as_bytes());
             let ogg_path_str =
                 YouTubeExtractor::extract_downloaded_path_static(&stdout, output_dir);
             let ogg_path = Path::new(&ogg_path_str);
@@ -801,17 +855,32 @@ impl YouTubeExtractor {
             }
         }
 
+        let stdout = String::from_utf8_lossy(output.stdout.as_bytes());
+        let downloaded_path = YouTubeExtractor::extract_downloaded_path_static(&stdout, output_dir);
+
         if embed_thumbnail {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let downloaded_path =
-                YouTubeExtractor::extract_downloaded_path_static(&stdout, output_dir);
             YouTubeExtractor::cleanup_thumbnail_sidecars(&downloaded_path);
+        }
+
+        let size = std::fs::metadata(&downloaded_path).map(|m| m.len()).ok();
+        if let Some(ref tx) = on_progress {
+            let _ = tx.send(ProgressEvent::complete(
+                item,
+                total,
+                &downloaded_path,
+                size.unwrap_or(0),
+            ));
         }
 
         Ok(DownloadResult {
             success: true,
-            path: None,
-            size: None,
+            path: if downloaded_path.ends_with("/unknown") || downloaded_path.ends_with("\\unknown")
+            {
+                None
+            } else {
+                Some(downloaded_path)
+            },
+            size,
             error: None,
             elapsed: None,
         })
@@ -952,4 +1021,185 @@ impl YouTubeExtractor {
             }
         }
     }
+}
+
+/// Runs a yt-dlp command, streaming stdout line by line to progress events.
+async fn run_streaming(
+    cmd: &mut tokio::process::Command,
+    timeout_secs: u64,
+    tx: Option<&ProgressSender>,
+    item: usize,
+    total: usize,
+) -> Result<StreamResult> {
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+
+    let mut child = cmd.spawn().map_err(|e| SourisError::DownloadFailed {
+        reason: e.to_string(),
+    })?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| SourisError::DownloadFailed {
+            reason: "Failed to capture yt-dlp stdout".into(),
+        })?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| SourisError::DownloadFailed {
+            reason: "Failed to capture yt-dlp stderr".into(),
+        })?;
+
+    let tx_clone = tx.cloned();
+    let stdout_task = tokio::spawn(async move {
+        let reader = tokio::io::BufReader::new(stdout);
+        let mut lines = reader.lines();
+        let mut collected = String::new();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let trimmed = line.trim();
+            collected.push_str(trimmed);
+            collected.push('\n');
+            if let Some(ref tx) = tx_clone {
+                handle_progress_line(tx, trimmed, item, total);
+            }
+        }
+        collected
+    });
+
+    let tx_clone2 = tx.cloned();
+    let stderr_task = tokio::spawn(async move {
+        let reader = tokio::io::BufReader::new(stderr);
+        let mut lines = reader.lines();
+        let mut collected = String::new();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let trimmed = line.trim();
+            collected.push_str(trimmed);
+            collected.push('\n');
+            if let Some(ref tx) = tx_clone2 {
+                handle_progress_line(tx, trimmed, item, total);
+            }
+        }
+        collected
+    });
+
+    let status = match tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs),
+        child.wait(),
+    )
+    .await
+    {
+        Ok(status) => status.map_err(|e| SourisError::DownloadFailed {
+            reason: e.to_string(),
+        })?,
+        Err(_) => {
+            let _ = child.kill().await;
+            return Err(SourisError::Timeout {
+                seconds: timeout_secs,
+            });
+        }
+    };
+
+    let stdout = stdout_task.await.map_err(|e| SourisError::DownloadFailed {
+        reason: format!("Failed to read yt-dlp output: {}", e),
+    })?;
+    let stderr = stderr_task.await.map_err(|e| SourisError::DownloadFailed {
+        reason: format!("Failed to read yt-dlp stderr: {}", e),
+    })?;
+
+    Ok(StreamResult {
+        status,
+        stdout,
+        stderr,
+    })
+}
+
+/// Emits progress/postprocess/metadata events for a single yt-dlp output line.
+fn handle_progress_line(tx: &ProgressSender, line: &str, item: usize, total: usize) {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('[') {
+        return;
+    }
+
+    if trimmed.starts_with("[download]") {
+        if let Some((percent, speed, eta)) = parse_progress_line(trimmed) {
+            let _ = tx.send(ProgressEvent::progress(item, total, percent, &speed, &eta));
+        }
+    } else if let Some((stage, format)) = parse_stage_line(trimmed) {
+        if is_metadata_stage(&stage) {
+            let _ = tx.send(ProgressEvent::metadata(item, total, &stage));
+        } else if is_postprocess_stage(&stage) {
+            let _ = tx.send(ProgressEvent::postprocess(item, total, &stage, &format));
+        }
+    }
+}
+
+/// Parses `[download] 45.2% of 12.3MiB at 2.3MiB/s ETA 00:12` into percent/speed/eta.
+fn parse_progress_line(line: &str) -> Option<(f64, String, String)> {
+    let body = line.trim_start_matches("[download]").trim();
+    if !body.contains('%') {
+        return None;
+    }
+    let percent = body.split('%').next()?.trim().parse::<f64>().ok()?;
+    let mut speed = String::new();
+    let mut eta = String::new();
+    if let Some(idx) = body.find(" at ") {
+        if let Some(rest) = body.get(idx + 4..) {
+            speed = rest.split_whitespace().next().unwrap_or("").to_string();
+        }
+    }
+    if let Some(idx) = body.find(" ETA ") {
+        if let Some(rest) = body.get(idx + 5..) {
+            eta = rest.split_whitespace().next().unwrap_or("").to_string();
+        }
+    }
+    Some((percent, speed, eta))
+}
+
+/// Parses a stage line like `[ExtractAudio] Destination: /path/file.mp3`.
+/// Returns (stage, format_extension).
+fn parse_stage_line(line: &str) -> Option<(String, String)> {
+    let line = line.trim();
+    let end = line.find(']')?;
+    let name = line[1..end].to_string();
+    let ext = extract_extension_from_line(line).unwrap_or_default();
+    Some((name, ext))
+}
+
+/// Extracts the file extension from a yt-dlp stage line (Destination or quoted path).
+fn extract_extension_from_line(line: &str) -> Option<String> {
+    let path = if let Some(idx) = line.find("Destination:") {
+        line[idx + "Destination:".len()..].trim().to_string()
+    } else if let Some(start) = line.find('"') {
+        line[start + 1..].split('"').next()?.to_string()
+    } else {
+        return None;
+    };
+    let path = path.trim_start_matches('[').trim();
+    Path::new(&path)
+        .extension()
+        .map(|e| e.to_string_lossy().to_string())
+}
+
+fn is_metadata_stage(stage: &str) -> bool {
+    matches!(stage, "Metadata" | "EmbedThumbnail" | "ThumbnailsConvertor")
+}
+
+fn is_postprocess_stage(stage: &str) -> bool {
+    matches!(
+        stage,
+        "ExtractAudio"
+            | "VideoConvertor"
+            | "Merger"
+            | "FixupM3u8"
+            | "FixupM4a"
+            | "FixupWebm"
+            | "MoveFiles"
+            | "EmbedSubtitle"
+    )
+}
+
+fn format_elapsed(elapsed: std::time::Duration) -> String {
+    let secs = elapsed.as_secs();
+    format!("{:02}:{:02}", secs / 60, secs % 60)
 }

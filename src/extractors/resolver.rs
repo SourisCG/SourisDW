@@ -46,6 +46,10 @@ impl Resolver {
     }
 
     pub fn detect_platform(&self, url: &str) -> Platform {
+        Self::detect_platform_static(url)
+    }
+
+    pub fn detect_platform_static(url: &str) -> Platform {
         let url_lower = url.to_lowercase();
 
         if url_lower.contains("youtube.com") || url_lower.contains("youtu.be") {
@@ -54,6 +58,14 @@ impl Resolver {
             Platform::Spotify
         } else {
             Platform::Unknown
+        }
+    }
+
+    pub fn detect_platform_name(url: &str) -> String {
+        match Self::detect_platform_static(url) {
+            Platform::YouTube => "youtube".to_string(),
+            Platform::Spotify => "spotify".to_string(),
+            Platform::Unknown => "unknown".to_string(),
         }
     }
 
@@ -112,8 +124,12 @@ impl Resolver {
                             })
                         }
                     }
-                    ResourceType::Playlist => {
-                        let tracks = spotify.extract_playlist_info(url).await?;
+                    ResourceType::Playlist | ResourceType::Album => {
+                        let tracks = if matches!(resource_type, ResourceType::Album) {
+                            spotify.extract_album_info(url).await?
+                        } else {
+                            spotify.extract_playlist_info(url).await?
+                        };
                         if let Some(first_track) = tracks.first() {
                             let search_query = first_track.to_search_query();
                             let search_results = self.youtube.search(&search_query, 1).await?;
@@ -123,7 +139,11 @@ impl Resolver {
                                 info.platform = format!("Spotify -> YouTube ({})", info.platform);
                                 info.playlist = Some(PlaylistInfo {
                                     id: url.to_string(),
-                                    title: format!("Spotify Playlist ({} tracks)", tracks.len()),
+                                    title: if matches!(resource_type, ResourceType::Album) {
+                                        format!("Spotify Album ({} tracks)", tracks.len())
+                                    } else {
+                                        format!("Spotify Playlist ({} tracks)", tracks.len())
+                                    },
                                     count: tracks.len(),
                                 });
                                 Ok(info)
@@ -132,6 +152,10 @@ impl Resolver {
                                     reason: "No YouTube results found".into(),
                                 })
                             }
+                        } else if matches!(resource_type, ResourceType::Album) {
+                            Err(SourisError::DownloadFailed {
+                                reason: "Spotify album is empty".into(),
+                            })
                         } else {
                             Err(SourisError::DownloadFailed {
                                 reason: "Spotify playlist is empty".into(),
@@ -139,7 +163,7 @@ impl Resolver {
                         }
                     }
                     _ => Err(SourisError::UnsupportedPlatform {
-                        platform: "Spotify (only tracks and playlists supported)".into(),
+                        platform: "Spotify (only tracks, playlists and albums supported)".into(),
                     }),
                 }
             }
@@ -165,6 +189,10 @@ impl Resolver {
         ffmpeg_path: Option<&std::path::Path>,
         cookies_file: Option<&str>,
         cookies_from_browser: Option<&str>,
+        parallel: usize,
+        timeout: u64,
+        max_retries: u32,
+        on_progress: Option<crate::core::progress::ProgressSender>,
     ) -> Result<DownloadResult> {
         let platform = self.detect_platform(url);
         let resource_type = self.detect_resource_type(url);
@@ -182,22 +210,34 @@ impl Resolver {
                             embed_metadata,
                             embed_thumbnail,
                             embed_subtitles,
-                            4,
+                            parallel,
                             ffmpeg_path,
                             cookies_file,
                             cookies_from_browser,
+                            timeout,
+                            max_retries,
+                            on_progress,
                         )
                         .await?;
 
                     let success = results.iter().all(|r| r.success);
+                    let failed_count = results.iter().filter(|r| !r.success).count();
+                    let size = results.iter().filter_map(|r| r.size).sum();
                     Ok(DownloadResult {
                         success,
-                        path: None,
-                        size: None,
+                        path: results
+                            .iter()
+                            .find_map(|r| r.path.clone())
+                            .or_else(|| results.last().and_then(|r| r.path.clone())),
+                        size: if success { Some(size) } else { None },
                         error: if success {
                             None
                         } else {
-                            Some("Some downloads failed".into())
+                            Some(format!(
+                                "{} of {} downloads failed",
+                                failed_count,
+                                results.len()
+                            ))
                         },
                         elapsed: None,
                     })
@@ -216,6 +256,9 @@ impl Resolver {
                             ffmpeg_path,
                             cookies_file,
                             cookies_from_browser,
+                            timeout,
+                            max_retries,
+                            on_progress,
                         )
                         .await
                 }
@@ -246,6 +289,9 @@ impl Resolver {
                                     ffmpeg_path,
                                     cookies_file,
                                     cookies_from_browser,
+                                    timeout,
+                                    max_retries,
+                                    on_progress,
                                 )
                                 .await?;
 
@@ -260,11 +306,19 @@ impl Resolver {
                             })
                         }
                     }
-                    ResourceType::Playlist => {
-                        let tracks = spotify.extract_playlist_info(url).await?;
+                    ResourceType::Playlist | ResourceType::Album => {
+                        let tracks = if matches!(resource_type, ResourceType::Album) {
+                            spotify.extract_album_info(url).await?
+                        } else {
+                            spotify.extract_playlist_info(url).await?
+                        };
                         let mut results = Vec::new();
+                        let mut item = 0usize;
+                        let total = tracks.len();
+                        let started = std::time::Instant::now();
 
                         for track in tracks {
+                            item += 1;
                             let search_query = track.to_search_query();
                             let search_results = self.youtube.search(&search_query, 1).await?;
 
@@ -283,27 +337,72 @@ impl Resolver {
                                         ffmpeg_path,
                                         cookies_file,
                                         cookies_from_browser,
+                                        timeout,
+                                        max_retries,
+                                        on_progress.clone(),
                                     )
                                     .await;
 
                                 match download_result {
-                                    Ok(r) => results.push(r),
-                                    Err(e) => results.push(DownloadResult {
-                                        success: false,
-                                        path: None,
-                                        size: None,
-                                        error: Some(e.to_string()),
-                                        elapsed: None,
-                                    }),
+                                    Ok(mut r) => {
+                                        r.path =
+                                            r.path.map(|p| p.replace(&result.title, &track.name));
+                                        results.push(r);
+                                    }
+                                    Err(e) => {
+                                        if let Some(ref tx) = on_progress {
+                                            let _ = tx.send(
+                                                crate::core::progress::ProgressEvent::error(
+                                                    item,
+                                                    total,
+                                                    "DOWNLOAD_FAILED",
+                                                    &e.to_string(),
+                                                ),
+                                            );
+                                        }
+                                        results.push(DownloadResult {
+                                            success: false,
+                                            path: None,
+                                            size: None,
+                                            error: Some(e.to_string()),
+                                            elapsed: None,
+                                        });
+                                    }
                                 }
+                            } else {
+                                results.push(DownloadResult {
+                                    success: false,
+                                    path: None,
+                                    size: None,
+                                    error: Some(format!(
+                                        "No YouTube results for: {}",
+                                        search_query
+                                    )),
+                                    elapsed: None,
+                                });
                             }
                         }
 
                         let success = results.iter().all(|r| r.success);
+                        if let Some(ref tx) = on_progress {
+                            let success_count = results.iter().filter(|r| r.success).count();
+                            let failed_count = results.len() - success_count;
+                            let elapsed = started.elapsed();
+                            let _ = tx.send(crate::core::progress::ProgressEvent::summary(
+                                total,
+                                success_count,
+                                failed_count,
+                                &format!(
+                                    "{:02}:{:02}",
+                                    elapsed.as_secs() / 60,
+                                    elapsed.as_secs() % 60
+                                ),
+                            ));
+                        }
                         Ok(DownloadResult {
                             success,
-                            path: None,
-                            size: None,
+                            path: results.last().and_then(|r| r.path.clone()),
+                            size: results.iter().filter_map(|r| r.size).sum::<u64>().into(),
                             error: if success {
                                 None
                             } else {
@@ -313,7 +412,7 @@ impl Resolver {
                         })
                     }
                     _ => Err(SourisError::UnsupportedPlatform {
-                        platform: "Spotify (only tracks and playlists supported)".into(),
+                        platform: "Spotify (only tracks, playlists and albums supported)".into(),
                     }),
                 }
             }
@@ -331,6 +430,9 @@ impl Resolver {
                         ffmpeg_path,
                         cookies_file,
                         cookies_from_browser,
+                        timeout,
+                        max_retries,
+                        on_progress,
                     )
                     .await
             }

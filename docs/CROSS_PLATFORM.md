@@ -6,19 +6,12 @@
 |----------|-------------|--------|
 | Linux | x86_64 (musl) | `souris-dw-linux-x86_64` |
 | Linux | x86_64 (glibc) | `souris-dw-linux-x86_64-glibc` |
-| Linux | x86_64 (Fedora) | `souris-dw-linux-x86_64-fedora` |
-| Linux | aarch64 (musl) | `souris-dw-linux-aarch64` |
-| Linux | aarch64 (glibc) | `souris-dw-linux-aarch64-glibc` |
-| macOS | x86_64 | `souris-dw-macos-x86_64` |
 | macOS | aarch64 | `souris-dw-macos-aarch64` |
 | Windows | x86_64 | `souris-dw-windows-x86_64.exe` |
-| Windows | aarch64 | `souris-dw-windows-arm64.exe` |
 
 **Binary compatibility:**
 - `souris-dw-linux-x86_64` - Statically linked with musl, works on ALL Linux distros. This is the primary Linux binary.
-- `souris-dw-linux-x86_64-glibc` - glibc-linked, built on Ubuntu. Works on Ubuntu/Debian and similar glibc-based distros.
-- `souris-dw-linux-x86_64-fedora` - Built natively on Fedora 41. Works on Fedora/RHEL/CentOS with newer glibc.
-- `souris-dw-windows-arm64.exe` - The application binary is built for Windows ARM64. Automatic ffmpeg/ffprobe installation is disabled on this platform until the upstream ffmpeg binary provider publishes Windows ARM64 assets.
+- `souris-dw-linux-x86_64-glibc` - glibc-linked, built on Ubuntu. Works on Ubuntu/Debian, Fedora, and similar glibc-based distros.
 
 ## File System Differences
 
@@ -101,11 +94,11 @@ SourisDW downloads `yt-dlp`, `ffmpeg`, `ffprobe`, and `deno` at runtime when the
 
 Default media output is the user's system Downloads directory on every platform. Library users get the same safe default when no explicit `.output(...)` is configured, and explicit output paths are always respected.
 
-| Dependency | Linux x86_64 | Linux aarch64 | macOS x86_64 | macOS aarch64 | Windows x86_64 | Windows aarch64 |
-|------------|--------------|---------------|--------------|---------------|----------------|-----------------|
-| yt-dlp | auto | auto | auto | auto | auto | auto |
-| deno | auto | auto | auto | auto | auto | auto |
-| ffmpeg/ffprobe | auto | auto | auto | auto | auto | system/fallback |
+| Dependency | Linux x86_64 | macOS aarch64 | Windows x86_64 |
+|------------|--------------|--------------|----------------|
+| yt-dlp | auto | auto | auto |
+| deno | auto | auto | auto |
+| ffmpeg/ffprobe | auto | auto | auto |
 
 ## Unicode Handling
 
@@ -151,9 +144,8 @@ SourisDW uses `rustls` (not OpenSSL) for TLS. System certificates are loaded via
 
 CI tests run on:
 - Ubuntu (latest) - x86_64
-- Fedora 41 - x86_64 (container)
-- macOS (latest) - native tests plus target checks for x86_64/aarch64
-- Windows (latest) - native tests plus target checks for x86_64/aarch64
+- macOS (latest) - native tests plus target check for aarch64
+- Windows (latest) - native tests plus target check for x86_64
 
 Tests include:
 - Formatting (`cargo fmt --check`)

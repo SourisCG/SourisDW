@@ -90,6 +90,23 @@ impl ProgressEvent {
         }
     }
 
+    pub fn postprocess(item: usize, total: usize, stage: &str, format: &str) -> Self {
+        ProgressEvent::PostProcess {
+            item,
+            total,
+            stage: stage.to_string(),
+            format: format.to_string(),
+        }
+    }
+
+    pub fn metadata(item: usize, total: usize, stage: &str) -> Self {
+        ProgressEvent::Metadata {
+            item,
+            total,
+            stage: stage.to_string(),
+        }
+    }
+
     pub fn complete(item: usize, total: usize, path: &str, size: u64) -> Self {
         ProgressEvent::Complete {
             item,

@@ -183,6 +183,8 @@ async fn main() {
                 cookies_from_browser.as_deref(),
                 cli.json,
                 cli.no_auto_update,
+                cli.timeout,
+                cli.max_retries,
             )
             .await
         }
@@ -206,6 +208,10 @@ async fn main() {
     };
 
     if let Err(e) = result {
+        let exit_code = e
+            .downcast_ref::<souris_dw::SourisError>()
+            .map(|err| err.exit_code())
+            .unwrap_or(1);
         if cli.json {
             let error = serde_json::json!({
                 "type": "error",
@@ -216,7 +222,7 @@ async fn main() {
         } else {
             eprintln!("Error: {}", wrap_text(&e.to_string()));
         }
-        std::process::exit(1);
+        std::process::exit(exit_code);
     }
 }
 
@@ -236,10 +242,24 @@ async fn handle_download(
     cookies_from_browser: Option<&str>,
     json: bool,
     no_auto_update: bool,
+    timeout: Option<u64>,
+    max_retries: Option<u32>,
 ) -> Result<()> {
     let config = souris_dw::AppConfig::load().ok();
 
     let mut builder = souris_dw::SourisDW::builder().auto_update(!no_auto_update);
+
+    if let Some(t) = timeout {
+        builder = builder.timeout(t);
+    }
+    if let Some(r) = max_retries {
+        builder = builder.max_retries(r);
+    }
+
+    let (tx, mut rx) = souris_dw::core::progress::create_progress_channel();
+    if json {
+        builder = builder.on_progress(tx);
+    }
 
     let fmt = format.or_else(|| config.as_ref().map(|c| c.download.default_format.as_str()));
     if let Some(f) = fmt {
@@ -291,18 +311,22 @@ async fn handle_download(
         req = req.quality_str(q)?;
     }
 
-    let result = req.run().await?;
+    let result = match req.run().await {
+        Ok(r) => r,
+        Err(e) => {
+            if json {
+                while let Ok(event) = rx.try_recv() {
+                    println!("{}", serde_json::to_string(&event)?);
+                }
+            }
+            return Err(e.into());
+        }
+    };
 
     if json {
-        println!(
-            "{}",
-            serde_json::to_string(&serde_json::json!({
-                "type": "complete",
-                "success": result.success,
-                "path": result.path,
-                "size": result.size
-            }))?
-        );
+        while let Ok(event) = rx.try_recv() {
+            println!("{}", serde_json::to_string(&event)?);
+        }
     } else if result.success {
         println!("Downloaded: {}", result.path.unwrap_or_default());
     } else {
@@ -342,16 +366,26 @@ async fn handle_info(url: &str, json: bool) -> Result<()> {
 
 async fn handle_search(
     query: &str,
-    _platform: Option<&str>,
+    platform: Option<&str>,
     limit: usize,
     json: bool,
 ) -> Result<()> {
+    if let Some(p) = platform {
+        let p = p.to_lowercase();
+        if p != "youtube" && p != "yt" {
+            return Err(anyhow::anyhow!(
+                "Search on platform '{}' is not supported. Only 'youtube' is available.",
+                p
+            ));
+        }
+    }
+
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
         .build()
         .await;
 
-    let results = dw.search(query).await?;
+    let results = dw.search(query, limit).await?;
 
     if json {
         println!("{}", serde_json::to_string(&results)?);
@@ -370,47 +404,79 @@ async fn handle_search(
 }
 
 async fn handle_update(
-    _yt_dlp: bool,
-    _ffmpeg: bool,
-    _self_: bool,
+    yt_dlp: bool,
+    ffmpeg: bool,
+    self_: bool,
     check: bool,
     json: bool,
 ) -> Result<()> {
-    if check {
-        let dw = souris_dw::SourisDW::builder()
-            .auto_update(false)
-            .build()
-            .await;
-        let status = dw.update_check().await?;
-        if json {
-            println!("{}", serde_json::to_string(&status)?);
-        } else {
-            for dep in &status {
-                println!(
-                    "{}: {} ({})",
-                    dep.name,
-                    dep.version.as_deref().unwrap_or("not installed"),
-                    dep.path
-                );
-            }
-        }
-        return Ok(());
+    if self_ {
+        return Err(anyhow::anyhow!(
+            "Self-update is not supported yet. Re-run the installer for the latest version."
+        ));
     }
 
     let dw = souris_dw::SourisDW::builder()
         .auto_update(false)
         .build()
         .await;
-    let status = dw.update().await?;
+
+    if check {
+        let status = dw.update_check().await?;
+
+        for dep in &status {
+            if let (Some(latest), true) = (&dep.latest, dep.update_available) {
+                tracing::info!(
+                    "{}: {} -> {}",
+                    dep.name,
+                    dep.version.as_deref().unwrap_or("not installed"),
+                    latest
+                );
+            }
+        }
+
+        if json {
+            println!("{}", serde_json::to_string(&status)?);
+        } else {
+            for dep in &status {
+                let status_icon = if dep.installed { "[x]" } else { "[ ]" };
+                let update_suffix = if dep.update_available {
+                    format!(" -> {}", dep.latest.as_deref().unwrap_or("latest"))
+                } else {
+                    String::new()
+                };
+                println!(
+                    "{} {} {} ({}){}",
+                    status_icon,
+                    dep.name,
+                    dep.version.as_deref().unwrap_or("not installed"),
+                    dep.path,
+                    update_suffix
+                );
+            }
+        }
+        return Ok(());
+    }
+
+    let only_yt = yt_dlp && !ffmpeg;
+    let only_ffmpeg = ffmpeg && !yt_dlp;
+    let status = if only_yt {
+        dw.update_specific(true, false, false).await?
+    } else if only_ffmpeg {
+        dw.update_specific(false, true, false).await?
+    } else {
+        dw.update().await?
+    };
 
     if json {
         println!("{}", serde_json::to_string(&status)?);
     } else {
         for dep in &status {
             println!(
-                "{}: updated to {}",
+                "{}: {} ({})",
                 dep.name,
-                dep.version.as_deref().unwrap_or("unknown")
+                dep.version.as_deref().unwrap_or("unknown"),
+                dep.path
             );
         }
     }
@@ -455,6 +521,7 @@ async fn handle_config(action: ConfigAction, json: bool) -> Result<()> {
             } else {
                 println!("Set {} = {}", key, value);
             }
+            config.save()?;
         }
         ConfigAction::Show => {
             if json {
@@ -706,7 +773,13 @@ async fn handle_tui() -> Result<()> {
                                 app.show_help = false;
                                 app.waiting_for_quit = false;
                             } else if app.show_settings {
-                                app.show_settings = false;
+                                app.close_settings();
+                                if let Err(e) = app.save_settings() {
+                                    app.status_message =
+                                        Some(format!("Failed to save settings: {}", e));
+                                } else {
+                                    app.status_message = Some("Settings saved".into());
+                                }
                                 app.waiting_for_quit = false;
                             } else if app.show_search {
                                 app.toggle_search();
@@ -880,7 +953,62 @@ async fn handle_tui() -> Result<()> {
                                                 req = req.quality_str(&default_quality)?;
                                             }
 
-                                            req.run().await
+                                            let (progress_tx, mut progress_rx) =
+                                                souris_dw::core::progress::create_progress_channel(
+                                                );
+                                            req = req.on_progress(progress_tx.clone());
+                                            let forwarder_tx = tx.clone();
+                                            let forwarder = tokio::spawn(async move {
+                                                while let Some(event) = progress_rx.recv().await {
+                                                    match event {
+                                                        souris_dw::ProgressEvent::Progress {
+                                                            percent,
+                                                            speed,
+                                                            eta,
+                                                            ..
+                                                        } => {
+                                                            let _ = forwarder_tx.send(
+                                                                TuiEvent::DownloadProgress {
+                                                                    index,
+                                                                    percent,
+                                                                    speed,
+                                                                    eta,
+                                                                },
+                                                            );
+                                                        }
+                                                        souris_dw::ProgressEvent::Complete {
+                                                            path,
+                                                            size,
+                                                            ..
+                                                        } => {
+                                                            let _ = forwarder_tx.send(
+                                                                TuiEvent::DownloadComplete {
+                                                                    index,
+                                                                    path,
+                                                                    size,
+                                                                },
+                                                            );
+                                                        }
+                                                        souris_dw::ProgressEvent::Error {
+                                                            message,
+                                                            ..
+                                                        } => {
+                                                            let _ = forwarder_tx.send(
+                                                                TuiEvent::DownloadError {
+                                                                    index,
+                                                                    message,
+                                                                },
+                                                            );
+                                                        }
+                                                        _ => {}
+                                                    }
+                                                }
+                                            });
+
+                                            let result = req.run().await;
+                                            drop(progress_tx);
+                                            let _ = forwarder.await;
+                                            result
                                         }
                                         .await;
 
@@ -917,7 +1045,7 @@ async fn handle_tui() -> Result<()> {
                                             .quiet_deps(true)
                                             .build()
                                             .await;
-                                        builder.search(&input_buf).await
+                                        builder.search(&input_buf, 10).await
                                     }
                                     .await;
 
@@ -1004,7 +1132,61 @@ async fn handle_tui() -> Result<()> {
                                             req = req.quality_str(&default_quality)?;
                                         }
 
-                                        req.run().await
+                                        let (progress_tx, mut progress_rx) =
+                                            souris_dw::core::progress::create_progress_channel();
+                                        req = req.on_progress(progress_tx.clone());
+                                        let forwarder_tx = tx.clone();
+                                        let forwarder = tokio::spawn(async move {
+                                            while let Some(event) = progress_rx.recv().await {
+                                                match event {
+                                                    souris_dw::ProgressEvent::Progress {
+                                                        percent,
+                                                        speed,
+                                                        eta,
+                                                        ..
+                                                    } => {
+                                                        let _ = forwarder_tx.send(
+                                                            TuiEvent::DownloadProgress {
+                                                                index,
+                                                                percent,
+                                                                speed,
+                                                                eta,
+                                                            },
+                                                        );
+                                                    }
+                                                    souris_dw::ProgressEvent::Complete {
+                                                        path,
+                                                        size,
+                                                        ..
+                                                    } => {
+                                                        let _ = forwarder_tx.send(
+                                                            TuiEvent::DownloadComplete {
+                                                                index,
+                                                                path,
+                                                                size,
+                                                            },
+                                                        );
+                                                    }
+                                                    souris_dw::ProgressEvent::Error {
+                                                        message,
+                                                        ..
+                                                    } => {
+                                                        let _ = forwarder_tx.send(
+                                                            TuiEvent::DownloadError {
+                                                                index,
+                                                                message,
+                                                            },
+                                                        );
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                        });
+
+                                        let result = req.run().await;
+                                        drop(progress_tx);
+                                        let _ = forwarder.await;
+                                        result
                                     }
                                     .await;
 
@@ -1035,7 +1217,6 @@ async fn handle_tui() -> Result<()> {
                                 app.input_buffer.pop();
                             }
                         }
-                        events::Action::Pause => {}
                         events::Action::Cancel => {
                             app.cancel_input();
                             app.waiting_for_quit = false;

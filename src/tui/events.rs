@@ -52,7 +52,6 @@ fn handle_normal_key(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('G') | KeyCode::End => Some(Action::MoveLast),
         KeyCode::Enter => Some(Action::Confirm),
         KeyCode::Char('d') | KeyCode::Delete => Some(Action::Delete),
-        KeyCode::Char('p') => Some(Action::Pause),
         _ => None,
     }
 }
@@ -95,7 +94,6 @@ pub enum Action {
     MoveLast,
     Confirm,
     Delete,
-    Pause,
     Cancel,
     CharInput(char),
     DeleteChar,

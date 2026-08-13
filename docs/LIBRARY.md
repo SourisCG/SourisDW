@@ -23,9 +23,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .quality("1080p")
         .output("./downloads")
         .build()
-        .await?;
+        .await;
 
-    dw.download("https://youtube.com/watch?v=xxx").await?;
+    dw.download("https://youtube.com/watch?v=xxx").run().await?;
 
     Ok(())
 }
@@ -83,6 +83,7 @@ let dw = SourisDW::builder()
 | `spotify_credentials(id, secret)` | string | None | Spotify API keys |
 | `cookies_file(string)` | string | None | Cookies file path |
 | `cookies_from_browser(string)` | string | None | Browser name |
+| `quiet_deps(bool)` | bool | false | Suppress dependency download progress bars |
 
 ## Fluent Download API
 
@@ -90,18 +91,20 @@ Each download method returns a chainable `DownloadRequestBuilder`:
 
 ```rust
 // Download with defaults
-dw.download("URL").await?;
+dw.download("URL").run().await?;
 
 // Download with format and quality overrides
 dw.download("URL")
     .format("mp3")
     .quality("lossless")
+    .run()
     .await?;
 
 // Download audio (hints media type)
 dw.download_audio("URL")
     .format("flac")
     .quality("lossless")
+    .run()
     .await?;
 
 // Download video
@@ -109,24 +112,28 @@ dw.download_video("URL")
     .format("mkv")
     .quality("4K")
     .output("./videos")
+    .run()
     .await?;
 
 // Download playlist
 dw.download_playlist("PLAYLIST_URL")
     .parallel(8)
     .format("mp3")
+    .run()
     .await?;
 
 // Using format_str and quality_str for dynamic input
 dw.download("URL")
     .format_str("mp4")?     // Parse from user input
     .quality_str("4K")?     // Parse from user input
+    .run()
     .await?;
 
 // With cookies
 dw.download("URL")
     .cookies_file("cookies.txt")
     .cookies_from_browser("firefox")
+    .run()
     .await?;
 ```
 
@@ -146,6 +153,8 @@ dw.download("URL")
 | `timeout(u64)` | Override timeout |
 | `max_retries(u32)` | Override max retries |
 | `auto_update(bool)` | Override auto-update |
+| `on_progress(ProgressSender)` | Attach a progress event channel |
+| `media_type(MediaTypeHint)` | Hint media type (Audio/Video/Playlist/Auto) |
 | `cookies_file(string)` | Override cookies file |
 | `cookies_from_browser(string)` | Override browser cookies |
 | `run()` | Execute download directly (without SourisDW) |
@@ -176,8 +185,8 @@ println!("Title: {}", info.title);
 println!("Duration: {:?}", info.duration);
 println!("Platform: {}", info.platform);
 
-// Search
-let results = dw.search("never gonna give you up").await?;
+// Search (limit = number of results)
+let results = dw.search("never gonna give you up", 10).await?;
 for item in results {
     println!("{}: {}", item.title, item.url);
 }
@@ -194,7 +203,7 @@ let (tx, mut rx) = create_progress_channel();
 let dw = SourisDW::builder()
     .on_progress(tx)
     .build()
-    .await?;
+    .await;
 
 // Spawn progress handler
 tokio::spawn(async move {
@@ -214,13 +223,13 @@ tokio::spawn(async move {
     }
 });
 
-dw.download("URL").await?;
+dw.download("URL").run().await?;
 ```
 
 ## Dependency Management
 
 ```rust
-// Check dependency status
+// Check dependency status (includes latest + update_available after check_updates)
 let status = dw.update_check().await?;
 for dep in &status {
     println!("{}: {} ({})", dep.name, dep.version.as_deref().unwrap_or("?"), dep.path);
@@ -228,6 +237,9 @@ for dep in &status {
 
 // Update all dependencies
 let updated = dw.update().await?;
+
+// Update only specific dependencies
+let updated = dw.update_specific(true, false, false).await?;  // yt-dlp only
 
 // Using DepManager directly
 use souris_dw::DepManager;
@@ -238,7 +250,12 @@ println!("yt-dlp: {}", deps.yt_dlp().binary_path().display());
 
 // Check status
 let status = deps.status();
+
+// Check for updates without installing (fills latest/update_available)
+let status = deps.check_updates().await;
 ```
+
+`DepStatus` fields: `name`, `installed`, `version`, `path`, plus `latest` and `update_available` (populated by `check_updates`).
 
 ## Configuration
 
@@ -278,7 +295,7 @@ config.flush()?;    // Save to disk
 ```rust
 use souris_dw::SourisError;
 
-match dw.download("URL").await {
+match dw.download("URL").run().await {
     Ok(_) => println!("Success"),
     Err(SourisError::DownloadFailed { reason }) => {
         eprintln!("Download failed: {}", reason);

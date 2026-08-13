@@ -154,6 +154,102 @@ impl SpotifyExtractor {
         Ok(items)
     }
 
+    pub async fn extract_album_info(&self, url: &str) -> Result<Vec<SpotifyTrackInfo>> {
+        let album_id = self.extract_album_id(url)?;
+        let access_token = self.get_access_token().await?;
+        let client = reqwest::Client::new();
+
+        let album_meta: Option<Value> = {
+            let api_url = format!("https://api.spotify.com/v1/albums/{}", album_id);
+            let response = client
+                .get(&api_url)
+                .header("Authorization", format!("Bearer {}", access_token))
+                .send()
+                .await
+                .map_err(|e| SourisError::DownloadFailed {
+                    reason: e.to_string(),
+                })?;
+            if response.status().is_success() {
+                response.json().await.ok()
+            } else {
+                None
+            }
+        };
+
+        let album_name = album_meta
+            .as_ref()
+            .and_then(|d| d["name"].as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+        let album_thumbnail = album_meta
+            .as_ref()
+            .and_then(|d| d["images"].as_array())
+            .and_then(|i| i.first())
+            .and_then(|i| i["url"].as_str())
+            .map(|s| s.to_string());
+
+        let mut items = Vec::new();
+        let mut next_url = Some(format!(
+            "https://api.spotify.com/v1/albums/{}/tracks?limit=50",
+            album_id
+        ));
+
+        while let Some(api_url) = next_url {
+            let response = client
+                .get(&api_url)
+                .header("Authorization", format!("Bearer {}", access_token))
+                .send()
+                .await
+                .map_err(|e| SourisError::DownloadFailed {
+                    reason: e.to_string(),
+                })?;
+
+            if !response.status().is_success() {
+                return Err(SourisError::DownloadFailed {
+                    reason: format!("Spotify API error: {}", response.status()),
+                });
+            }
+
+            let data: Value = response
+                .json()
+                .await
+                .map_err(|e| SourisError::DownloadFailed {
+                    reason: e.to_string(),
+                })?;
+
+            if let Some(tracks) = data["items"].as_array() {
+                for track in tracks {
+                    if track.is_null() {
+                        continue;
+                    }
+
+                    let id = track["id"].as_str().unwrap_or("").to_string();
+                    let name = track["name"].as_str().unwrap_or("Unknown").to_string();
+                    let artist = track["artists"]
+                        .as_array()
+                        .and_then(|a| a.first())
+                        .and_then(|a| a["name"].as_str())
+                        .unwrap_or("Unknown")
+                        .to_string();
+                    let duration_ms = track["duration_ms"].as_u64().unwrap_or(0);
+
+                    items.push(SpotifyTrackInfo {
+                        id,
+                        name,
+                        artist,
+                        album: album_name.clone(),
+                        duration_ms,
+                        thumbnail: album_thumbnail.clone(),
+                    });
+                }
+            }
+
+            next_url = data["next"].as_str().map(|s| s.to_string());
+        }
+
+        Ok(items)
+    }
+
     fn extract_track_id(&self, url: &str) -> Result<String> {
         let url = url.trim_end_matches('/');
         let parts: Vec<&str> = url.split('/').collect();
@@ -178,6 +274,24 @@ impl SpotifyExtractor {
 
         for (i, part) in parts.iter().enumerate() {
             if *part == "playlist" {
+                if let Some(id) = parts.get(i + 1) {
+                    let id = id.split('?').next().unwrap_or(id);
+                    return Ok(id.to_string());
+                }
+            }
+        }
+
+        Err(SourisError::InvalidUrl {
+            url: url.to_string(),
+        })
+    }
+
+    fn extract_album_id(&self, url: &str) -> Result<String> {
+        let url = url.trim_end_matches('/');
+        let parts: Vec<&str> = url.split('/').collect();
+
+        for (i, part) in parts.iter().enumerate() {
+            if *part == "album" {
                 if let Some(id) = parts.get(i + 1) {
                     let id = id.split('?').next().unwrap_or(id);
                     return Ok(id.to_string());

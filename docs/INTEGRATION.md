@@ -67,9 +67,13 @@ SourisDW exposes all functionality via its CLI with `--json` output. Any languag
   "name": "yt-dlp",
   "installed": true,
   "version": "2024.12.06",
-  "path": "/home/user/.local/share/souris-dw/bin/yt-dlp"
+  "path": "/home/user/.local/share/souris-dw/bin/yt-dlp",
+  "latest": "2024.12.13",
+  "update_available": true
 }
 ```
+
+`latest` and `update_available` are only present when using `update --check --json`.
 
 ## Python
 
@@ -171,8 +175,8 @@ while (!proc.StandardOutput.EndOfStream) {
 ```rust
 use souris_dw::SourisDW;
 
-let dw = SourisDW::builder().build().await?;
-dw.download("URL").format("mp3").await?;
+let dw = SourisDW::builder().build().await;
+dw.download("URL").format("mp3").run().await?;
 ```
 
 ## Creating Your Own SDK

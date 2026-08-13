@@ -5,9 +5,6 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-
 env:
   CARGO_TERM_COLOR: always
 
@@ -15,39 +12,29 @@ jobs:
   build:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux: musl is primary (works on ALL distros)
+          # Linux: musl is primary (works on ALL distros, including Fedora)
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             artifact: souris-dw-linux-x86_64
+            install_musl: true
+          # Linux: glibc build also works on Fedora and other glibc distros
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: souris-dw-linux-x86_64-glibc
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            artifact: souris-dw-linux-aarch64
-            cross: true
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact: souris-dw-linux-aarch64-glibc
-            cross: true
-          # macOS
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            artifact: souris-dw-macos-x86_64
+          # macOS: Apple Silicon
           - target: aarch64-apple-darwin
             os: macos-latest
             artifact: souris-dw-macos-aarch64
-          # Windows
+          # Windows: x64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: souris-dw-windows-x86_64.exe
-          - target: aarch64-pc-windows-msvc
-            os: windows-latest
-            artifact: souris-dw-windows-arm64.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -60,31 +47,13 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools
-        if: matrix.cross
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
       - name: Install musl tools
-        if: contains(matrix.target, 'musl')
+        if: matrix.install_musl
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
-      - name: Install cross
-        if: matrix.cross
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-
-      - name: Build with cross
-        if: matrix.cross
-        run: |
-          cross build --release --target ${{ matrix.target }}
-
       - name: Build
-        if: ${{ !matrix.cross }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename artifact (Unix)
@@ -104,50 +73,23 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
 
-  build-fedora:
-    name: Build (Fedora x86_64)
-    runs-on: ubuntu-latest
-    container: fedora:41
-    steps:
-      - name: Install dependencies
-        run: |
-          dnf install -y git gcc curl gzip
-
-      - name: Install Rust
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - uses: actions/checkout@v4
-
-      - name: Build
-        run: cargo build --release --target x86_64-unknown-linux-gnu
-
-      - name: Rename artifact
-        run: |
-          cp target/x86_64-unknown-linux-gnu/release/souris-dw souris-dw-linux-x86_64-fedora
-          chmod +x souris-dw-linux-x86_64-fedora
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: souris-dw-linux-x86_64-fedora
-          path: souris-dw-linux-x86_64-fedora
-
   package-linux:
     name: Package Linux (.deb/.rpm)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           key: package-linux
-      - name: Build
-        run: cargo build --release
       - name: Install packaging tools
-        run: |
-          cargo install cargo-deb cargo-generate-rpm
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+      - name: Build release binary
+        run: cargo build --release
       - name: Build packages
         run: |
           cargo deb --no-build
@@ -163,8 +105,10 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build, build-fedora, package-linux]
+    needs: [build, package-linux]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -183,18 +127,11 @@ jobs:
           cd artifacts
           test -f souris-dw-linux-x86_64/souris-dw-linux-x86_64
           test -f souris-dw-linux-x86_64-glibc/souris-dw-linux-x86_64-glibc
-          test -f souris-dw-linux-x86_64-fedora/souris-dw-linux-x86_64-fedora
-          test -f souris-dw-linux-aarch64/souris-dw-linux-aarch64
-          test -f souris-dw-linux-aarch64-glibc/souris-dw-linux-aarch64-glibc
-          test -f souris-dw-macos-x86_64/souris-dw-macos-x86_64
           test -f souris-dw-macos-aarch64/souris-dw-macos-aarch64
           test -f souris-dw-windows-x86_64.exe/souris-dw-windows-x86_64.exe
-          test -f souris-dw-windows-arm64.exe/souris-dw-windows-arm64.exe
           test -d linux-packages
-          tar -C souris-dw-macos-x86_64 -czf souris-dw-macos-x86_64.tar.gz souris-dw-macos-x86_64
           tar -C souris-dw-macos-aarch64 -czf souris-dw-macos-aarch64.tar.gz souris-dw-macos-aarch64
           zip -j souris-dw-windows-x86_64.zip souris-dw-windows-x86_64.exe/souris-dw-windows-x86_64.exe
-          zip -j souris-dw-windows-arm64.zip souris-dw-windows-arm64.exe/souris-dw-windows-arm64.exe
           for dir in */; do
             cd "$dir"
             for file in *; do
@@ -213,16 +150,9 @@ jobs:
           files: |
             artifacts/souris-dw-linux-x86_64/souris-dw-linux-x86_64
             artifacts/souris-dw-linux-x86_64-glibc/souris-dw-linux-x86_64-glibc
-            artifacts/souris-dw-linux-x86_64-fedora/souris-dw-linux-x86_64-fedora
-            artifacts/souris-dw-linux-aarch64/souris-dw-linux-aarch64
-            artifacts/souris-dw-linux-aarch64-glibc/souris-dw-linux-aarch64-glibc
-            artifacts/souris-dw-macos-x86_64/souris-dw-macos-x86_64
             artifacts/souris-dw-macos-aarch64/souris-dw-macos-aarch64
             artifacts/souris-dw-windows-x86_64.exe/souris-dw-windows-x86_64.exe
-            artifacts/souris-dw-windows-arm64.exe/souris-dw-windows-arm64.exe
-            artifacts/souris-dw-macos-x86_64.tar.gz
             artifacts/souris-dw-macos-aarch64.tar.gz
             artifacts/souris-dw-windows-x86_64.zip
-            artifacts/souris-dw-windows-arm64.zip
             artifacts/linux-packages/*
             artifacts/checksums-sha256.txt

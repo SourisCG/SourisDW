@@ -320,6 +320,26 @@ impl AppState {
         self.waiting_for_quit = false;
     }
 
+    pub fn close_settings(&mut self) {
+        self.show_settings = false;
+        self.input_mode = InputMode::Normal;
+        self.waiting_for_quit = false;
+    }
+
+    /// Persists the settings panel values into the config file.
+    pub fn save_settings(&self) -> crate::error::Result<()> {
+        let mut config = crate::config::AppConfig::load()?;
+        config.download.default_format = self.config.default_format.clone();
+        config.download.default_quality = self.config.default_quality.clone();
+        config.download.output_dir = self.config.output_dir.clone();
+        config.download.parallel = self.config.parallel;
+        config.download.embed_metadata = self.config.embed_metadata;
+        config.download.embed_thumbnail = self.config.embed_thumbnail;
+        config.yt_dlp.auto_update = self.config.auto_update;
+        config.save()?;
+        Ok(())
+    }
+
     pub fn toggle_search(&mut self) {
         self.show_search = !self.show_search;
         if self.show_search {

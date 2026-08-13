@@ -21,9 +21,9 @@ let dw = SourisDW::builder()
     .quality("1080p")
     .output("./downloads")
     .build()
-    .await?;
+    .await;
 
-dw.download("https://youtube.com/watch?v=xxx").await?;
+dw.download("https://youtube.com/watch?v=xxx").run().await?;
 ```
 
 ## Patron Builder
@@ -47,26 +47,26 @@ let dw = SourisDW::builder()
     .cookies_file("cookies.txt")
     .cookies_from_browser("firefox")
     .build()
-    .await?;
+    .await;
 ```
 
 ## API Fluida
 
 ```rust
 // Descarga con defaults
-dw.download("URL").await?;
+dw.download("URL").run().await?;
 
 // Solo audio
-dw.download_audio("URL").format("flac").quality("lossless").await?;
+dw.download_audio("URL").format("flac").quality("lossless").run().await?;
 
 // Solo video
-dw.download_video("URL").format("mkv").quality("4K").await?;
+dw.download_video("URL").format("mkv").quality("4K").run().await?;
 
 // Lista de reproduccion
-dw.download_playlist("PLAYLIST_URL").parallel(8).format("mp3").await?;
+dw.download_playlist("PLAYLIST_URL").parallel(8).format("mp3").run().await?;
 
 // Con parseo dinamico
-dw.download("URL").format_str("mp4")?.quality_str("4K")?.await?;
+dw.download("URL").format_str("mp4")?.quality_str("4K")?.run().await?;
 ```
 
 ## Informacion y Busqueda
@@ -75,7 +75,7 @@ dw.download("URL").format_str("mp4")?.quality_str("4K")?.await?;
 let info = dw.info("URL").await?;
 println!("Titulo: {}", info.title);
 
-let results = dw.search("never gonna give you up").await?;
+let results = dw.search("never gonna give you up", 10).await?;
 ```
 
 ## Eventos de Progreso
@@ -89,7 +89,7 @@ let (tx, mut rx) = create_progress_channel();
 let dw = SourisDW::builder()
     .on_progress(tx)
     .build()
-    .await?;
+    .await;
 
 tokio::spawn(async move {
     while let Some(event) = rx.recv().await {
@@ -108,7 +108,7 @@ tokio::spawn(async move {
     }
 });
 
-dw.download("URL").await?;
+dw.download("URL").run().await?;
 ```
 
 ## Manejo de Errores
@@ -116,7 +116,7 @@ dw.download("URL").await?;
 ```rust
 use souris_dw::SourisError;
 
-match dw.download("URL").await {
+match dw.download("URL").run().await {
     Ok(_) => println!("Exito"),
     Err(SourisError::DownloadFailed { reason }) => {
         eprintln!("Error de descarga: {}", reason);
@@ -132,6 +132,37 @@ match dw.download("URL").await {
     }
 }
 ```
+
+## Manejo de Dependencias
+
+```rust
+// Verificar estado de dependencias (incluye latest + update_available tras check_updates)
+let status = dw.update_check().await?;
+for dep in &status {
+    println!("{}: {} ({})", dep.name, dep.version.as_deref().unwrap_or("?"), dep.path);
+}
+
+// Actualizar todas las dependencias
+let updated = dw.update().await?;
+
+// Actualizar solo dependencias especificas
+let updated = dw.update_specific(true, false, false).await?;  // solo yt-dlp
+
+// Usando DepManager directamente
+use souris_dw::DepManager;
+
+// Setup con auto-update
+let deps = DepManager::setup(true, "stable").await;
+println!("yt-dlp: {}", deps.yt_dlp().binary_path().display());
+
+// Estado
+let status = deps.status();
+
+// Verificar actualizaciones sin instalar (llena latest/update_available)
+let status = deps.check_updates().await;
+```
+
+Los campos de `DepStatus` son: `name`, `installed`, `version`, `path`, mas `latest` y `update_available` (poblados por `check_updates`).
 
 ## Tipos
 

@@ -66,17 +66,10 @@ get_download_url() {
                 echo "${base_url}/${BINARY}-linux-x86_64"
             fi
             ;;
-        linux-aarch64)
-            if [ "$(detect_libc)" = "glibc" ]; then
-                echo "${base_url}/${BINARY}-linux-aarch64-glibc"
-            else
-                echo "${base_url}/${BINARY}-linux-aarch64"
-            fi
-            ;;
-        macos-x86_64)   echo "${base_url}/${BINARY}-macos-x86_64" ;;
         macos-aarch64)  echo "${base_url}/${BINARY}-macos-aarch64" ;;
+        macos-x86_64)   error "Intel macOS is not supported. Use an Apple Silicon Mac or build from source." ;;
         windows-x86_64) echo "${base_url}/${BINARY}-windows-x86_64.exe" ;;
-        windows-aarch64) echo "${base_url}/${BINARY}-windows-arm64.exe" ;;
+        windows-*)      error "Windows ARM64 is not supported." ;;
         *)              error "No binary available for ${os}-${arch}" ;;
     esac
 }

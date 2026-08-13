@@ -6,15 +6,12 @@
 |------------|--------------|---------|
 | Linux | x86_64 (musl) | `souris-dw-linux-x86_64` |
 | Linux | x86_64 (glibc) | `souris-dw-linux-x86_64-glibc` |
-| Linux | x86_64 (Fedora) | `souris-dw-linux-x86_64-fedora` |
-| Linux | aarch64 (musl) | `souris-dw-linux-aarch64` |
-| Linux | aarch64 (glibc) | `souris-dw-linux-aarch64-glibc` |
-| macOS | x86_64 | `souris-dw-macos-x86_64` |
 | macOS | aarch64 | `souris-dw-macos-aarch64` |
 | Windows | x86_64 | `souris-dw-windows-x86_64.exe` |
-| Windows | aarch64 | `souris-dw-windows-arm64.exe` |
 
-Nota: `souris-dw-windows-arm64.exe` se compila para Windows ARM64. La instalacion automatica de ffmpeg/ffprobe queda desactivada en esa plataforma hasta que el proveedor upstream publique assets Windows ARM64.
+**Compatibilidad de binarios:**
+- `souris-dw-linux-x86_64` - Enlazado estaticamente con musl, funciona en TODAS las distros Linux. Es el binario Linux principal.
+- `souris-dw-linux-x86_64-glibc` - Enlazado con glibc, compilado en Ubuntu. Funciona en Ubuntu/Debian, Fedora y distros similares basadas en glibc.
 
 ## Diferencias del Sistema de Archivos
 
@@ -64,19 +61,18 @@ SourisDW descarga `yt-dlp`, `ffmpeg`, `ffprobe` y `deno` en runtime si faltan. L
 
 La salida por defecto es la carpeta Downloads/Descargas del usuario en cada sistema. El uso como libreria mantiene ese default seguro si no se configura `.output(...)`, y siempre respeta rutas explicitas.
 
-| Dependencia | Linux x86_64 | Linux aarch64 | macOS x86_64 | macOS aarch64 | Windows x86_64 | Windows aarch64 |
-|-------------|--------------|---------------|--------------|---------------|----------------|-----------------|
-| yt-dlp | auto | auto | auto | auto | auto | auto |
-| deno | auto | auto | auto | auto | auto | auto |
-| ffmpeg/ffprobe | auto | auto | auto | auto | auto | sistema/fallback |
+| Dependencia | Linux x86_64 | macOS aarch64 | Windows x86_64 |
+|-------------|--------------|--------------|----------------|
+| yt-dlp | auto | auto | auto |
+| deno | auto | auto | auto |
+| ffmpeg/ffprobe | auto | auto | auto |
 
 ## Matriz de Pruebas CI
 
 Las pruebas de CI se ejecutan en:
 - Ubuntu (latest) - x86_64
-- Fedora 41 - x86_64 (contenedor)
-- macOS (latest) - pruebas nativas y checks de target x86_64/aarch64
-- Windows (latest) - pruebas nativas y checks de target x86_64/aarch64
+- macOS (latest) - pruebas nativas y check de target aarch64
+- Windows (latest) - pruebas nativas y check de target x86_64
 
 Pruebas incluyen:
 - Formato (`cargo fmt --check`)

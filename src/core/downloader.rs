@@ -252,16 +252,25 @@ impl SourisDW {
         self.resolver.resolve_info(url).await
     }
 
-    pub async fn search(&self, query: &str) -> Result<Vec<SearchItem>> {
-        self.resolver.resolve_search(query, 10).await
+    pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchItem>> {
+        self.resolver.resolve_search(query, limit).await
     }
 
     pub async fn update(&self) -> Result<Vec<crate::deps::DepStatus>> {
         Ok(self.deps.update_all().await)
     }
 
+    pub async fn update_specific(
+        &self,
+        yt_dlp: bool,
+        ffmpeg: bool,
+        deno: bool,
+    ) -> Result<Vec<crate::deps::DepStatus>> {
+        Ok(self.deps.update_specific(yt_dlp, ffmpeg, deno).await)
+    }
+
     pub async fn update_check(&self) -> Result<Vec<crate::deps::DepStatus>> {
-        Ok(self.deps.status())
+        Ok(self.deps.check_updates().await)
     }
 
     pub async fn execute_request(&self, req: DownloadRequestBuilder) -> Result<DownloadResult> {
@@ -287,7 +296,39 @@ impl SourisDW {
             .clone()
             .or_else(|| self.cookies_from_browser.clone());
 
-        self.resolver
+        let sender = req.on_progress.clone().or_else(|| self.on_progress.clone());
+
+        let is_playlist = req.url.to_lowercase().contains("/playlist")
+            || req.url.to_lowercase().contains("list=");
+
+        if !is_playlist {
+            if let Some(ref tx) = sender {
+                let title = self
+                    .info(&req.url)
+                    .await
+                    .ok()
+                    .map(|i| i.title)
+                    .unwrap_or_default();
+                let platform =
+                    crate::extractors::resolver::Resolver::detect_platform_name(&req.url);
+                let media_type = match req.media_type {
+                    Some(crate::core::request::MediaTypeHint::Audio) => "audio".to_string(),
+                    Some(crate::core::request::MediaTypeHint::Video) => "video".to_string(),
+                    _ => platform_detected_media_type(&req.url),
+                };
+                let _ = tx.send(crate::core::progress::ProgressEvent::init(
+                    &req.url,
+                    &platform,
+                    &title,
+                    &media_type,
+                    1,
+                ));
+            }
+        }
+
+        let started = std::time::Instant::now();
+        let result = self
+            .resolver
             .resolve_download(
                 &req.url,
                 format,
@@ -300,7 +341,43 @@ impl SourisDW {
                 ffmpeg_path.as_deref(),
                 cookies_file.as_deref(),
                 cookies_from_browser.as_deref(),
+                req.parallel.unwrap_or(self.parallel),
+                req.timeout.unwrap_or(self.timeout),
+                req.max_retries.unwrap_or(self.max_retries),
+                sender.clone(),
             )
-            .await
+            .await;
+
+        if !is_playlist {
+            if let Some(ref tx) = sender {
+                let total = 1usize;
+                let (success, failed) = match &result {
+                    Ok(r) => (usize::from(r.success), usize::from(!r.success)),
+                    Err(_) => (0, 1),
+                };
+                let _ = tx.send(crate::core::progress::ProgressEvent::summary(
+                    total,
+                    success,
+                    failed,
+                    &format_elapsed(started.elapsed()),
+                ));
+            }
+        }
+
+        result
     }
+}
+
+fn platform_detected_media_type(url: &str) -> String {
+    let lower = url.to_lowercase();
+    if lower.contains("/playlist") || lower.contains("list=") {
+        "playlist".to_string()
+    } else {
+        "video".to_string()
+    }
+}
+
+fn format_elapsed(elapsed: std::time::Duration) -> String {
+    let secs = elapsed.as_secs();
+    format!("{:02}:{:02}", secs / 60, secs % 60)
 }

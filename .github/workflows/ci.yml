@@ -6,8 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
 
 jobs:
   fmt:
@@ -71,21 +78,12 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
+            install_musl: true
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            cross: true
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            cross: true
-          - target: x86_64-apple-darwin
-            os: macos-latest
           - target: aarch64-apple-darwin
             os: macos-latest
           - target: x86_64-pc-windows-msvc
-            os: windows-latest
-          - target: aarch64-pc-windows-msvc
             os: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,34 +94,9 @@ jobs:
         with:
           key: check-${{ matrix.target }}
       - name: Install musl tools
-        if: contains(matrix.target, 'musl')
+        if: matrix.install_musl
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
-      - name: Install cross
-        if: matrix.cross
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-      - name: Check with cross
-        if: matrix.cross
-        run: cross check --target ${{ matrix.target }}
       - name: Check
-        if: ${{ !matrix.cross }}
         run: cargo check --target ${{ matrix.target }}
-
-  test-fedora:
-    name: Tests (Fedora 41)
-    runs-on: ubuntu-latest
-    container: fedora:41
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          dnf install -y git gcc curl gzip
-      - name: Install Rust
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test

@@ -7,6 +7,8 @@ fn test_dep_status_serialization() {
         installed: true,
         version: Some("1.2.3".into()),
         path: "/usr/local/bin/test-dep".into(),
+        latest: None,
+        update_available: false,
     };
 
     let json = serde_json::to_string(&status).unwrap();
@@ -27,6 +29,8 @@ fn test_dep_status_serialization_not_installed() {
         installed: false,
         version: None,
         path: "/usr/bin/missing".into(),
+        latest: None,
+        update_available: false,
     };
 
     let json = serde_json::to_string(&status).unwrap();

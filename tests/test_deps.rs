@@ -7,6 +7,8 @@ fn test_dep_status_default_fields() {
         installed: true,
         version: Some("1.0".into()),
         path: "/usr/bin/test".into(),
+        latest: None,
+        update_available: false,
     };
     assert_eq!(status.name, "test");
     assert!(status.installed);
@@ -21,6 +23,8 @@ fn test_dep_status_not_installed() {
         installed: false,
         version: None,
         path: "/usr/bin/missing".into(),
+        latest: None,
+        update_available: false,
     };
     assert!(!status.installed);
     assert!(status.version.is_none());

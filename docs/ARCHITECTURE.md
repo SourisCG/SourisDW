@@ -12,7 +12,7 @@ souris-dw/
 ├── src/
 │   ├── lib.rs              # Public API exports
 │   ├── bin/souris-dw/      # CLI binary
-│   │   └── main.rs         # Entry point (CLI + TUI, 1059 lines)
+│   │   └── main.rs         # Entry point (CLI + TUI, ~1300 lines)
 │   ├── core/               # Core business logic
 │   │   ├── downloader.rs   # SourisDW struct + builder (fluent API)
 │   │   ├── request.rs      # DownloadRequestBuilder (chainable overrides)
@@ -72,6 +72,7 @@ User Input (URL)
 +------+-------+     +--------------+
        |
        |  Spotify flow: metadata lookup -> YouTube search -> download matched video
+       |  (tracks, playlists, and albums)
        v
 +--------------+
 |  Downloader  |  Builds yt-dlp command with format selection, quality filters,
@@ -81,6 +82,10 @@ User Input (URL)
 |              |   - --embed-metadata, --embed-thumbnail (throttled per format)
 |              |   - --windows-filenames, --replace-in-metadata
 |              |   - HTTP 403 retry with android player client fallback
+|              |   - Live output streaming: stdout/stderr parsed line by line
+|              |     into init/progress/postprocess/metadata/complete/summary
+|              |     events when an on_progress channel is attached
+|              |   - --socket-timeout/--retries from the downloader config
 |              |   - wav_2step (deprecated, always false)
 +------+-------+
        |
@@ -150,7 +155,9 @@ On HTTP 403, the retry format string falls back to generic `bestvideo[height<=h]
 | `build(auto_update, channel)` | Same as setup (legacy alias) |
 | `setup_blocking(auto_update, channel, quiet)` | With progress bars always shown |
 | `status()` | Returns Vec<DepStatus> for all deps |
+| `check_updates()` | Fetches latest versions and reports `update_available` |
 | `update_all()` | Check and update all deps |
+| `update_specific(yt_dlp, ffmpeg, deno)` | Update only the requested deps |
 | `yt_dlp()` / `ffmpeg()` / `deno()` | Access individual dep managers |
 
 ## Platform Detection
@@ -199,4 +206,5 @@ All CLI commands support `--json` output for subprocess integration:
 - **WAV 2-step deprecated**: Previously downloaded as vorbis and converted to WAV via ffmpeg. Now downloads directly as WAV. WAV cannot embed thumbnails, so `--embed-thumbnail` is skipped.
 - **Trailing period filenames**: `--replace-in-metadata title "\.+$" ""` strips trailing dots from titles before filename construction.
 - **Path extraction**: `extract_downloaded_path_static()` parses yt-dlp stdout for `[ExtractAudio] Destination:` first, falls back to `[download] Destination:` to find the final file path after post-processing.
+- **Progress events**: when `on_progress` is attached, yt-dlp stdout **and stderr** are streamed line-by-line. `[download]` lines are parsed into `progress` events, post-processing stages (`ExtractAudio`, `Merger`, `VideoConvertor`, ...) into `postprocess` events, and metadata stages into `metadata` events. File size is read from disk after completion.
 - **Empty postprocess module**: `src/postprocess/mod.rs` exists but is empty (reserved for future use). All post-processing is handled by yt-dlp.
