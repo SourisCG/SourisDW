@@ -1,9 +1,17 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (defaults to the version in Cargo.toml, e.g. v0.4.0)'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -112,6 +120,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            case "$VERSION" in
+              v*) ;;
+              *) VERSION="v$VERSION" ;;
+            esac
+          else
+            VERSION="v$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -144,15 +166,27 @@ jobs:
           done
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            artifacts/souris-dw-linux-x86_64/souris-dw-linux-x86_64
-            artifacts/souris-dw-linux-x86_64-glibc/souris-dw-linux-x86_64-glibc
-            artifacts/souris-dw-macos-aarch64/souris-dw-macos-aarch64
-            artifacts/souris-dw-windows-x86_64.exe/souris-dw-windows-x86_64.exe
-            artifacts/souris-dw-macos-aarch64.tar.gz
-            artifacts/souris-dw-windows-x86_64.zip
-            artifacts/linux-packages/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Publishing release $VERSION"
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Release $VERSION already exists. Choose another version or delete the existing release/tag."
+            exit 1
+          fi
+          PRERELEASE_FLAG=""
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$VERSION" \
+            $PRERELEASE_FLAG \
+            --generate-notes \
+            artifacts/souris-dw-linux-x86_64/souris-dw-linux-x86_64 \
+            artifacts/souris-dw-linux-x86_64-glibc/souris-dw-linux-x86_64-glibc \
+            artifacts/souris-dw-macos-aarch64/souris-dw-macos-aarch64 \
+            artifacts/souris-dw-windows-x86_64.exe/souris-dw-windows-x86_64.exe \
+            artifacts/souris-dw-macos-aarch64.tar.gz \
+            artifacts/souris-dw-windows-x86_64.zip \
+            artifacts/linux-packages/* \
             artifacts/checksums-sha256.txt
