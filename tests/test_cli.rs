@@ -47,7 +47,7 @@ fn run(args: &[&str]) -> std::process::Output {
 
 #[test]
 fn test_config_set_persists() {
-    let env = isolated_env();
+    let _env = isolated_env();
 
     let set = run(&["config", "set", "download.default_format", "mp3"]);
     assert!(set.status.success());
@@ -56,10 +56,12 @@ fn test_config_set_persists() {
     assert!(get.status.success());
     assert_eq!(String::from_utf8_lossy(&get.stdout).trim(), "mp3");
 
-    // Also verify the TOML file itself was written.
-    let config_dir = env.base.join("config");
-    let contents = std::fs::read_to_string(config_dir.join("souris-dw/config.toml"))
-        .expect("config file should exist after config set");
+    // Also verify the TOML file itself was written. Uses the same directory
+    // resolution as the binary (works on Linux, macOS, and Windows).
+    let config_path =
+        souris_dw::AppConfig::config_path().expect("config path should be resolvable");
+    let contents =
+        std::fs::read_to_string(&config_path).expect("config file should exist after config set");
     assert!(contents.contains("default_format = \"mp3\""));
 }
 

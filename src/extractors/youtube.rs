@@ -1170,10 +1170,9 @@ fn parse_stage_line(line: &str) -> Option<(String, String)> {
 fn extract_extension_from_line(line: &str) -> Option<String> {
     let path = if let Some(idx) = line.find("Destination:") {
         line[idx + "Destination:".len()..].trim().to_string()
-    } else if let Some(start) = line.find('"') {
-        line[start + 1..].split('"').next()?.to_string()
     } else {
-        return None;
+        let start = line.find('"')?;
+        line[start + 1..].split('"').next()?.to_string()
     };
     let path = path.trim_start_matches('[').trim();
     Path::new(&path)
