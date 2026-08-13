@@ -55,7 +55,7 @@ ratatui = "0.29"
 crossterm = "0.28"
 
 # Audio metadata (ID3 tags, album art, etc.)
-lofty = "0.21"
+lofty = "0.25"
 
 # Path utilities (cross-platform)
 directories = "6"
