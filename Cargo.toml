@@ -98,7 +98,7 @@ futures = "0.3"
 tokio-stream = "0.1"
 
 # Progress bars
-indicatif = "0.17"
+indicatif = "0.18"
 
 # Text wrapping for long error messages
 textwrap = "0.16"
