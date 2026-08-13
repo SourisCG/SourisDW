@@ -81,7 +81,7 @@ which = "7"
 
 # Compression (runtime download)
 flate2 = "1"
-zip = "2"
+zip = "8"
 
 # Clipboard
 arboard = "3"
