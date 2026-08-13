@@ -4,10 +4,15 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
 
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    ignore:
+      # Major version bumps usually break the API and require manual
+      # migration; only minor/patch updates are auto-proposed.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
