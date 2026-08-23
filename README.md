@@ -22,7 +22,7 @@
 
 ## Features
 
-- Download music and video from **YouTube** and **Spotify**
+- Download music and video from **YouTube**
 - Full playlist and album support for both platforms
 - Audio formats: MP3, FLAC, AAC, OGG, M4A, WAV
 - Video formats: MP4, MKV, WebM, AVI, MOV
