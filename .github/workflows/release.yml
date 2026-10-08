@@ -76,7 +76,7 @@ jobs:
           cp target/${{ matrix.target }}/release/souris-dw.exe ${{ matrix.artifact }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
@@ -106,7 +106,7 @@ jobs:
           cp target/debian/*.deb packages/
           cp target/generate-rpm/*.rpm packages/
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linux-packages
           path: packages/*
